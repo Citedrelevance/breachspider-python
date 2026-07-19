@@ -1,0 +1,47 @@
+# --- Python build / packaging artifacts ---
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+.installed.cfg
+MANIFEST
+
+# --- Bytecode / caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Local editor / OS cruft ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Editing backups (the repo's own convention elsewhere) ---
+*.bak
+*.bak_*
+
+# --- Anything that could carry a real credential (defense in depth) ---
+*.env
+.env
+.env.*
+secrets.*
+*_secret*
+credentials*

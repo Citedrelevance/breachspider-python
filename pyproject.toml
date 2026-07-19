@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "breachspider"
+version = "0.1.0"
+description = "Official Python SDK for the BreachSpider ICS/OT CVE intelligence API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "CITED Relevance LLC", email = "joshua@citedrelevance.com" }]
+keywords = ["breachspider", "cve", "ics", "ot", "scada", "vulnerability", "security"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+dependencies = ["requests>=2.25"]
+
+[project.urls]
+Homepage = "https://breachspider.com"
+Documentation = "https://breachspider.com/docs"
+Source = "https://github.com/citedrelevance/breachspider-python"
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "responses>=0.23", "openapi-spec-validator>=0.7"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["breachspider*"]
+
+[tool.setuptools.package-data]
+breachspider = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: hits the live API with a demo token (skipped offline)",
+]
