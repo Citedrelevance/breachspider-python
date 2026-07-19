@@ -1,8 +1,9 @@
 # BreachSpider Python SDK
 
 Official Python client for the [BreachSpider](https://breachspider.com) ICS/OT
-CVE intelligence API. Go from zero to working queries in under five minutes
-instead of writing your own HTTP client.
+CVE intelligence API. Go from zero to working queries in about ten seconds from
+clone to first query — most of it `pip install` — instead of writing your own
+HTTP client.
 
 - Typed objects for CVEs, vendors, products, environments, and assets — not raw dicts.
 - Transparent pagination that absorbs the API's per-endpoint shapes.
@@ -51,7 +52,8 @@ tier or above and are created in the dashboard under **Integrations → API Keys
 import os
 import breachspider
 
-bs = breachspider.Client(os.environ["BREACHSPIDER_API_KEY"])
+# export BREACHSPIDER_API_KEY=bs_live_your_key_here
+bs = breachspider.Client(os.environ.get("BREACHSPIDER_API_KEY", "bs_live_YOUR_KEY_HERE"))
 print(bs)   # key is redacted: <breachspider.Client base_url='https://breachspider.com' auth=live key=***redacted***>
 ```
 
@@ -125,6 +127,26 @@ for _cve in bs.cves.search(vendor="schneider-electric"):
 print("iterated", count, "CVEs across multiple pages")
 ```
 
+### Do not call list() on a search iterator
+
+`list(bs.cves.search(...))` materializes **every page** of the result set.
+Siemens alone has over 5,000 CVEs; walking all of them will exhaust every page
+and can trigger the rate limit. Use `itertools.islice` when you only need the
+first N, or a `for` loop with a `break`.
+
+```python
+import itertools
+import breachspider
+
+bs = breachspider.Client.demo()
+
+# Safe: fetch exactly 10 results and stop. Never touches page 2 or beyond.
+first_ten = list(itertools.islice(
+    bs.cves.search(vendor="siemens", kev=True, sort_by="cvss"), 10))
+for cve in first_ten:
+    print(cve.cve_id, cve.cvss_score)
+```
+
 ### Rate-limit safety
 
 The API sits behind a Cloudflare edge limit that trips at roughly 37 rapid
@@ -141,25 +163,30 @@ print("page_delay:", bs.page_delay, "max_retries:", bs.max_retries)
 
 ## Quota / usage headers
 
-Every response to a `bs_live_` key carries `X-RateLimit-*` headers. The client
-parses them into `bs.quota` after any call. Metering is **observe-only** today —
+With a demo token (`Client.demo()`), `bs.quota` is always `None` — demo
+traffic is not metered.
+
+With a `bs_live_` key, every response carries `X-RateLimit-*` headers that the
+client parses into `bs.quota` after any call. Metering is **observe-only** today —
 usage is reported but nothing is rejected. Unlimited tiers report the string
 `"unlimited"`.
 
 ```python
 import os
 import breachspider
+from breachspider import AuthenticationError
 
-bs = breachspider.Client(os.environ["BREACHSPIDER_API_KEY"])
-next(iter(bs.cves.search(vendor="siemens", per_page=1)), None)
+# export BREACHSPIDER_API_KEY=bs_live_your_key_here
+bs = breachspider.Client(os.environ.get("BREACHSPIDER_API_KEY", "bs_live_YOUR_KEY_HERE"))
 
-q = bs.quota
-print("limit:", q.limit, "used:", q.used, "remaining:", q.remaining)
-# On Professional: limit 25000 ... ; on Enterprise/api: limit 'unlimited'
+try:
+    next(iter(bs.cves.search(vendor="siemens", per_page=1)), None)
+    q = bs.quota
+    print("limit:", q.limit, "used:", q.used, "remaining:", q.remaining)
+    # On Professional: limit 25000 ... ; on Enterprise/api: limit 'unlimited'
+except AuthenticationError:
+    print("Set BREACHSPIDER_API_KEY to a live bs_live_… key to see quota.")
 ```
-
-> Demo tokens are **not** metered, so `bs.quota` stays `None` when you use
-> `Client.demo()`.
 
 ## Error handling
 
@@ -220,6 +247,25 @@ with a key.
 - **No product/version/CPE filter** on `/cves` yet. Filter by `vendor` (slug).
 - **Metering is observe-only.** Usage is counted and returned in headers, but no
   request is rejected for exceeding a monthly allowance today.
+
+## Running the tests
+
+Install the dev extras, then run the suite:
+
+```bash
+pip install ".[dev]"
+pytest
+```
+
+The suite includes live integration tests that hit the real API using a demo
+token. To skip them when offline (or in CI without network access):
+
+```bash
+BREACHSPIDER_SKIP_INTEGRATION=1 pytest
+```
+
+The integration tests are marked `@pytest.mark.integration` and are skipped
+automatically if the API is unreachable or the env var is set.
 
 ## License
 
