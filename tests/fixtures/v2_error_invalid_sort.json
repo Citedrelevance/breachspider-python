@@ -1,0 +1,40 @@
+{
+ "request": {
+  "environment_id": 12,
+  "windows_hosts": [
+   {
+    "asset_id": "WIN-EXAMPLE-01",
+    "os_product": "Windows Server 2019 Standard",
+    "edition_id": "ServerStandard",
+    "display_version": "1809",
+    "os_build": "10.0.17763.7792",
+    "architecture": "x64",
+    "installation_type": "Server",
+    "collected_at": "2026-09-25T14:02:00Z"
+   }
+  ],
+  "options": {
+   "sort": "bogus"
+  }
+ },
+ "status": 422,
+ "response": {
+  "api": {
+   "version": "1.0.0",
+   "request_id": "bs-req-8f60f89b4b16",
+   "timestamp": "2026-09-26T17:22:03.998391Z"
+  },
+  "error": {
+   "code": "VALIDATION_ERROR",
+   "message": "Request validation failed.",
+   "detail": [
+    {
+     "field": "body.options.sort",
+     "message": "Value error, sort must be one of: priority, score, exploit, newest (got 'bogus')",
+     "type": "value_error"
+    }
+   ]
+  }
+ },
+ "recorded": "2026-09-26, live API, throwaway test organization (deleted after recording); environment id shown as 12"
+}

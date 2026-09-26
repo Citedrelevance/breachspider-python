@@ -1,0 +1,553 @@
+{
+ "request": {
+  "assets": [
+   {
+    "asset_id": "EXAMPLE-SWITCH-01",
+    "vendor": "Moxa",
+    "product": "EDS-518A",
+    "version": "V3.5"
+   }
+  ]
+ },
+ "status": 200,
+ "response": {
+  "api": {
+   "version": "1.0.0",
+   "request_id": "bs-req-dfe090267833",
+   "timestamp": "2026-09-26T17:21:56.022398Z",
+   "processing_ms": 217
+  },
+  "data": {
+   "results": [
+    {
+     "asset_id": "EXAMPLE-SWITCH-01",
+     "submitted": {
+      "vendor": "Moxa",
+      "product": "EDS-518A",
+      "version": "V3.5",
+      "firmware_version": null,
+      "product_type": null
+     },
+     "resolution": {
+      "status": "resolved",
+      "coverage": "covered",
+      "confidence": 94,
+      "confidence_band": "HIGH",
+      "vendor": {
+       "id": 11418,
+       "name": "Moxa",
+       "slug": "moxa"
+      },
+      "product": {
+       "id": 178012,
+       "name": "EDS-518A",
+       "slug": "eds-518a"
+      },
+      "cpe": {
+       "vendor": "moxa",
+       "product": "eds-518a"
+      },
+      "match_basis": [
+       "cpe_alias",
+       "exact",
+       "prefix",
+       "substring",
+       "token",
+       "version:in_range"
+      ]
+     },
+     "candidates": [],
+     "cves": [
+      {
+       "cve_id": "CVE-2024-9137",
+       "bsid": "BS-2024-GLOBAL-046494-C",
+       "title": "The affected product lacks an authentication check when sending commands to the server via the Moxa service. This vulner",
+       "description": "The affected product lacks an authentication check when sending commands to the server via the Moxa service. This vulnerability allows an attacker to execute specified commands, potentially leading to unauthorized downloads or uploads of configuration files and system compromise.",
+       "scoring": {
+        "cvss": {
+         "score": 9.4,
+         "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:H",
+         "version": "3.1",
+         "severity": "CRITICAL",
+         "attack_vector": "NETWORK",
+         "attack_complexity": "LOW",
+         "privileges_required": "NONE",
+         "user_interaction": "NONE",
+         "scope": "UNCHANGED",
+         "confidentiality_impact": "LOW",
+         "integrity_impact": "HIGH",
+         "availability_impact": "HIGH"
+        },
+        "epss": {
+         "score": 0.00501,
+         "percentile": 0.4034,
+         "interpretation": "Below median exploitation probability"
+        },
+        "bcs": {
+         "score": 6.84,
+         "tier": "MEDIUM",
+         "factors": {
+          "kev_flagged": false,
+          "poc_available": false,
+          "has_public_exploit": false,
+          "patch_available": false,
+          "ics_relevance": 0.7
+         }
+        }
+       },
+       "exploitation": {
+        "kev_flagged": false,
+        "kev_added_at": null,
+        "has_public_exploit": false,
+        "poc_available": false,
+        "exploit_maturity": "NONE",
+        "actively_exploited": false
+       },
+       "affected": {
+        "vendors": [
+         "Moxa"
+        ],
+        "products": [],
+        "primary_vendor": null,
+        "primary_product": null,
+        "vendor_count": 1,
+        "device_types": [
+         "Industrial Firewall"
+        ],
+        "protocols": [],
+        "ics_relevance_score": 0.7,
+        "ics_relevant": true
+       },
+       "patch": {
+        "status": "unknown",
+        "patch_available": false,
+        "patch_version": null,
+        "patch_url": null,
+        "patch_notes": null
+       },
+       "classification": {
+        "cwes": [
+         {
+          "id": 306,
+          "url": "https://cwe.mitre.org/data/definitions/306.html"
+         }
+        ],
+        "attack_vector": "NETWORK",
+        "attack_complexity": "LOW",
+        "privileges_required": "NONE",
+        "user_interaction": "NONE",
+        "scope": "UNCHANGED",
+        "layer": null,
+        "category": null
+       },
+       "sage": {
+        "model": "SAGE-v1",
+        "tier": "full",
+        "executive_summary": "CVE-2024-9137 affects Moxa products due to a lack of authentication checks when sending commands to the server via the Moxa service. This can lead to unauthorized command execution, potentially allowing attackers to download or upload configuration files and compromise the system. The CVSS score is 9.4, indicating a high severity level.",
+        "ics_context": null,
+        "remediation_guidance": null,
+        "confidence_score": null,
+        "confidence_tier": null,
+        "_upgrade_required": false,
+        "_upgrade_url": null
+       },
+       "temporal": {
+        "published_at": "2024-10-14T09:15:04+00:00",
+        "modified_at": "2026-06-17T08:24:01+00:00",
+        "enriched_at": "2026-05-22T15:36:48.504598+00:00",
+        "kev_added_at": null
+       },
+       "references": {
+        "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-9137",
+        "cisa_url": null,
+        "breachspider_url": "https://breachspider.com/ics-cve/CVE-2024-9137",
+        "vendor_advisories": [],
+        "cited_exclusive": null
+       },
+       "_links": {
+        "self": "/api/v1/cves/CVE-2024-9137",
+        "pdf": "/api/v1/ics-cve/CVE-2024-9137/pdf",
+        "html": "https://breachspider.com/ics-cve/CVE-2024-9137"
+       },
+       "match_tier": "RANGE",
+       "affected_range": {
+        "cpe_version": "*",
+        "is_range": true,
+        "version_start": "1.0",
+        "version_start_inclusive": true,
+        "version_end": "3.11",
+        "version_end_inclusive": true
+       },
+       "priority_rank": 1,
+       "priority_reason": "confirmed (affected 1.0 to 3.11), fix: upgrade beyond 3.11 (derived)",
+       "fix": {
+        "available": true,
+        "action": "upgrade beyond 3.11",
+        "source": "derived",
+        "derived": true
+       }
+      },
+      {
+       "cve_id": "CVE-2024-7695",
+       "bsid": "BS-2025-GLOBAL-043371-H",
+       "title": "Multiple switches are affected by an out-of-bounds write vulnerability. This vulnerability is caused by insufficient inp",
+       "description": "Multiple switches are affected by an out-of-bounds write vulnerability. This vulnerability is caused by insufficient input validation, which allows data to be written to memory outside the bounds of the buffer. Successful exploitation of this vulnerability could result in a denial-of-service attack.",
+       "scoring": {
+        "cvss": {
+         "score": 7.5,
+         "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+         "version": "3.1",
+         "severity": "HIGH",
+         "attack_vector": "NETWORK",
+         "attack_complexity": "LOW",
+         "privileges_required": "NONE",
+         "user_interaction": "NONE",
+         "scope": "UNCHANGED",
+         "confidentiality_impact": "NONE",
+         "integrity_impact": "NONE",
+         "availability_impact": "HIGH"
+        },
+        "epss": {
+         "score": 0.00728,
+         "percentile": 0.52206,
+         "interpretation": "Above median exploitation probability"
+        },
+        "bcs": {
+         "score": 5.57,
+         "tier": "MEDIUM",
+         "factors": {
+          "kev_flagged": false,
+          "poc_available": false,
+          "has_public_exploit": false,
+          "patch_available": false,
+          "ics_relevance": 0.15
+         }
+        }
+       },
+       "exploitation": {
+        "kev_flagged": false,
+        "kev_added_at": null,
+        "has_public_exploit": false,
+        "poc_available": false,
+        "exploit_maturity": "NONE",
+        "actively_exploited": false
+       },
+       "affected": {
+        "vendors": [],
+        "products": [],
+        "primary_vendor": null,
+        "primary_product": null,
+        "vendor_count": 0,
+        "device_types": [],
+        "protocols": [],
+        "ics_relevance_score": 0.15,
+        "ics_relevant": false
+       },
+       "patch": {
+        "status": "unknown",
+        "patch_available": false,
+        "patch_version": null,
+        "patch_url": null,
+        "patch_notes": null
+       },
+       "classification": {
+        "cwes": [
+         {
+          "id": 787,
+          "url": "https://cwe.mitre.org/data/definitions/787.html"
+         }
+        ],
+        "attack_vector": "NETWORK",
+        "attack_complexity": "LOW",
+        "privileges_required": "NONE",
+        "user_interaction": "NONE",
+        "scope": "UNCHANGED",
+        "layer": null,
+        "category": null
+       },
+       "sage": {
+        "model": "SAGE-v1",
+        "tier": "full",
+        "executive_summary": "Multiple switches are affected by an out-of-bounds write vulnerability due to insufficient input validation, which could lead to a denial-of-service attack.",
+        "ics_context": null,
+        "remediation_guidance": null,
+        "confidence_score": null,
+        "confidence_tier": null,
+        "_upgrade_required": false,
+        "_upgrade_url": null
+       },
+       "temporal": {
+        "published_at": "2025-01-29T08:15:19+00:00",
+        "modified_at": "2026-06-17T08:20:44+00:00",
+        "enriched_at": "2026-05-22T15:36:41.240464+00:00",
+        "kev_added_at": null
+       },
+       "references": {
+        "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-7695",
+        "cisa_url": null,
+        "breachspider_url": "https://breachspider.com/ics-cve/CVE-2024-7695",
+        "vendor_advisories": [],
+        "cited_exclusive": null
+       },
+       "_links": {
+        "self": "/api/v1/cves/CVE-2024-7695",
+        "pdf": "/api/v1/ics-cve/CVE-2024-7695/pdf",
+        "html": "https://breachspider.com/ics-cve/CVE-2024-7695"
+       },
+       "match_tier": "RANGE",
+       "affected_range": {
+        "cpe_version": "*",
+        "is_range": true,
+        "version_start": "1.0",
+        "version_start_inclusive": true,
+        "version_end": "3.11",
+        "version_end_inclusive": true
+       },
+       "priority_rank": 2,
+       "priority_reason": "confirmed (affected 1.0 to 3.11), fix: upgrade beyond 3.11 (derived)",
+       "fix": {
+        "available": true,
+        "action": "upgrade beyond 3.11",
+        "source": "derived",
+        "derived": true
+       }
+      },
+      {
+       "cve_id": "CVE-2024-9404",
+       "bsid": "BS-2024-GLOBAL-045007-H",
+       "title": "This vulnerability could lead to denial-of-service or service crashes. Exploitation of the moxa_cmd service, because of ",
+       "description": "This vulnerability could lead to denial-of-service or service crashes. Exploitation of the moxa_cmd service, because of insufficient input validation, allows attackers to disrupt operations. If exposed to public networks, the vulnerability poses a significant remote threat, potentially allowing attackers to shut down affected systems.",
+       "scoring": {
+        "cvss": {
+         "score": 7.5,
+         "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+         "version": "3.1",
+         "severity": "HIGH",
+         "attack_vector": "NETWORK",
+         "attack_complexity": "LOW",
+         "privileges_required": "NONE",
+         "user_interaction": "NONE",
+         "scope": "UNCHANGED",
+         "confidentiality_impact": "NONE",
+         "integrity_impact": "NONE",
+         "availability_impact": "HIGH"
+        },
+        "epss": {
+         "score": 0.00752,
+         "percentile": 0.53063,
+         "interpretation": "Above median exploitation probability"
+        },
+        "bcs": {
+         "score": 4.9,
+         "tier": "MEDIUM",
+         "factors": {
+          "kev_flagged": false,
+          "poc_available": false,
+          "has_public_exploit": false,
+          "patch_available": false,
+          "ics_relevance": 0.0
+         }
+        }
+       },
+       "exploitation": {
+        "kev_flagged": false,
+        "kev_added_at": null,
+        "has_public_exploit": false,
+        "poc_available": false,
+        "exploit_maturity": "NONE",
+        "actively_exploited": false
+       },
+       "affected": {
+        "vendors": [],
+        "products": [],
+        "primary_vendor": null,
+        "primary_product": null,
+        "vendor_count": 0,
+        "device_types": [],
+        "protocols": [],
+        "ics_relevance_score": 0.0,
+        "ics_relevant": false
+       },
+       "patch": {
+        "status": "unknown",
+        "patch_available": false,
+        "patch_version": null,
+        "patch_url": null,
+        "patch_notes": null
+       },
+       "classification": {
+        "cwes": [
+         {
+          "id": 1287,
+          "url": "https://cwe.mitre.org/data/definitions/1287.html"
+         }
+        ],
+        "attack_vector": "NETWORK",
+        "attack_complexity": "LOW",
+        "privileges_required": "NONE",
+        "user_interaction": "NONE",
+        "scope": "UNCHANGED",
+        "layer": null,
+        "category": null
+       },
+       "sage": {
+        "model": "SAGE-v1",
+        "tier": "full",
+        "executive_summary": "CVE-2024-9404 is a vulnerability in the moxa_cmd service due to insufficient input validation, which could lead to denial-of-service or service crashes. This poses a significant remote threat if exposed to public networks.",
+        "ics_context": null,
+        "remediation_guidance": null,
+        "confidence_score": null,
+        "confidence_tier": null,
+        "_upgrade_required": false,
+        "_upgrade_url": null
+       },
+       "temporal": {
+        "published_at": "2024-12-04T04:15:04+00:00",
+        "modified_at": "2026-06-17T08:24:30+00:00",
+        "enriched_at": "2026-05-22T15:36:44.448120+00:00",
+        "kev_added_at": null
+       },
+       "references": {
+        "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-9404",
+        "cisa_url": null,
+        "breachspider_url": "https://breachspider.com/ics-cve/CVE-2024-9404",
+        "vendor_advisories": [],
+        "cited_exclusive": null
+       },
+       "_links": {
+        "self": "/api/v1/cves/CVE-2024-9404",
+        "pdf": "/api/v1/ics-cve/CVE-2024-9404/pdf",
+        "html": "https://breachspider.com/ics-cve/CVE-2024-9404"
+       },
+       "match_tier": "RANGE",
+       "affected_range": {
+        "cpe_version": "*",
+        "is_range": true,
+        "version_start": "1.0",
+        "version_start_inclusive": true,
+        "version_end": "3.11",
+        "version_end_inclusive": true
+       },
+       "priority_rank": 3,
+       "priority_reason": "confirmed (affected 1.0 to 3.11), fix: upgrade beyond 3.11 (derived)",
+       "fix": {
+        "available": true,
+        "action": "upgrade beyond 3.11",
+        "source": "derived",
+        "derived": true
+       }
+      }
+     ],
+     "cves_page": {
+      "page": 1,
+      "page_size": 250,
+      "total": 3,
+      "total_unfiltered": 3,
+      "has_more": false
+     },
+     "fix_groups": [
+      {
+       "fix": "upgrade beyond 3.11",
+       "fix_type": "version",
+       "source": "derived",
+       "derived": true,
+       "cve_ids": [
+        "CVE-2024-9137",
+        "CVE-2024-7695",
+        "CVE-2024-9404"
+       ],
+       "counts": {
+        "total": 3,
+        "confirmed": 3,
+        "known_exploited": 0,
+        "exploit_available": 0
+       },
+       "highest_score": {
+        "bcs": 6.84,
+        "cvss": 9.4
+       },
+       "group_rank": 1
+      }
+     ],
+     "fix_plan": {
+      "to_clear_known_exploited": null,
+      "to_clear_all_fixable": {
+       "fix": "upgrade beyond 3.11",
+       "derived": true,
+       "source": "derived",
+       "clears": {
+        "cves": 3,
+        "known_exploited": 0,
+        "groups": 1
+       },
+       "note": "Derived from affected version ranges, not from a vendor fix statement. Confirm the target release in the vendor's advisory: that release may not exist in this product line."
+      }
+     },
+     "needs_review": false,
+     "correlated_at": "2026-09-26T17:21:56.022015+00:00",
+     "result_hash": "sha256:ee5e58d4b621d3ce37f9f3df9b924b0cfa7006e2323daefd1d6f2b84c561756a",
+     "warnings": []
+    }
+   ],
+   "summary": {
+    "total": 1,
+    "by_status": {
+     "resolved": 1,
+     "ambiguous": 0,
+     "unresolved": 0
+    },
+    "by_coverage": {
+     "covered": 1,
+     "no_cpe_data": 0,
+     "partial": 0,
+     "null": 0
+    }
+   },
+   "fix_summary": [
+    {
+     "rank": 1,
+     "fix": "upgrade beyond 3.11",
+     "product": "EDS-518A",
+     "fix_type": "version",
+     "source": "derived",
+     "derived": true,
+     "asset_ids": [
+      "EXAMPLE-SWITCH-01"
+     ],
+     "counts": {
+      "assets": 1,
+      "cves": 3,
+      "known_exploited": 0,
+      "exploit_available": 0,
+      "confirmed": 3
+     },
+     "highest_score": {
+      "bcs": 6.84,
+      "cvss": 9.4
+     }
+    }
+   ]
+  },
+  "meta": {
+   "source": "breachspider-correlate",
+   "matcher": "stateless; same rules as stored matching",
+   "enrichment_version": "2.1",
+   "sage_model": "SAGE-v1",
+   "sort": "priority",
+   "filters": {
+    "confirmed_only": false,
+    "known_exploited_only": false,
+    "fix_available_only": false
+   },
+   "cve_paging": {
+    "page": 1,
+    "page_size": 250,
+    "note": "Per-asset CVE pages; see each result's cves_page. result_hash covers all CVEs."
+   }
+  },
+  "_links": {
+   "self": "/api/v1/assets/correlate-cves"
+  }
+ },
+ "recorded": "2026-09-26, live API, throwaway test organization (deleted after recording); environment id shown as 12"
+}

@@ -1,0 +1,50 @@
+{
+ "request": {
+  "environment_id": 12,
+  "windows_hosts": [
+   {
+    "asset_id": "WIN-EXAMPLE-03",
+    "hostname": "example-host",
+    "os_product": "Windows 10 Enterprise LTSC 2021",
+    "edition_id": "EnterpriseS",
+    "os_build": "10.0.19044.6332",
+    "architecture": "x64",
+    "installation_type": "Client",
+    "collected_at": "2026-09-25T14:02:00Z"
+   }
+  ]
+ },
+ "status": 422,
+ "response": {
+  "data": {
+   "assets": [],
+   "rejected": [
+    {
+     "asset_id": "WIN-EXAMPLE-03",
+     "errors": [
+      {
+       "code": "forbidden_field",
+       "field": "hostname",
+       "message": "Field 'hostname' is not accepted: identifying data must not be sent. The field was not stored."
+      }
+     ]
+    }
+   ],
+   "software_stored": 0,
+   "software_rejected": [],
+   "fix_summary": []
+  },
+  "meta": {
+   "api_version": "2",
+   "microsoft_data_as_of": "2026-09-25T07:00:00+00:00",
+   "sort": "priority",
+   "filters": {
+    "confirmed_only": false,
+    "known_exploited_only": false,
+    "fix_available_only": false
+   },
+   "took_ms": 6
+  }
+ },
+ "recorded": "2026-09-26, live API, throwaway test organization (deleted after recording); environment id shown as 12"
+}

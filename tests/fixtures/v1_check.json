@@ -1,0 +1,56 @@
+{
+ "request": {
+  "assets": [
+   {
+    "asset_id": "EXAMPLE-SWITCH-01",
+    "vendor": "Moxa",
+    "product": "EDS-518A",
+    "version": "V3.5",
+    "result_hash": "sha256:ee5e58d4b621d3ce37f9f3df9b924b0cfa7006e2323daefd1d6f2b84c561756a"
+   },
+   {
+    "asset_id": "EXAMPLE-SWITCH-02",
+    "vendor": "Moxa",
+    "product": "EDS-518A",
+    "version": "V3.5",
+    "result_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+   }
+  ]
+ },
+ "status": 200,
+ "response": {
+  "api": {
+   "version": "1.0.0",
+   "request_id": "bs-req-d239fdd8afa6",
+   "timestamp": "2026-09-26T17:21:57.301209Z",
+   "processing_ms": 320
+  },
+  "data": {
+   "results": [
+    {
+     "asset_id": "EXAMPLE-SWITCH-01",
+     "changed": false,
+     "current_hash": "sha256:ee5e58d4b621d3ce37f9f3df9b924b0cfa7006e2323daefd1d6f2b84c561756a",
+     "reason": "identity and cve/tier set unchanged"
+    },
+    {
+     "asset_id": "EXAMPLE-SWITCH-02",
+     "changed": true,
+     "current_hash": "sha256:ee5e58d4b621d3ce37f9f3df9b924b0cfa7006e2323daefd1d6f2b84c561756a",
+     "reason": "resolved identity or cve/tier set differs from submitted hash"
+    }
+   ],
+   "changed": [
+    "EXAMPLE-SWITCH-02"
+   ]
+  },
+  "meta": {
+   "source": "breachspider-correlate",
+   "mode": "staleness-check"
+  },
+  "_links": {
+   "self": "/api/v1/assets/correlate-cves/check"
+  }
+ },
+ "recorded": "2026-09-26, live API, throwaway test organization (deleted after recording); environment id shown as 12"
+}

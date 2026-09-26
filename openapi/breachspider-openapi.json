@@ -1,0 +1,3190 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "BreachSpider correlation API (v1 correlate + v2 Windows patch level)",
+  "version": "2026-09-26",
+  "description": "Covers POST /api/v1/assets/correlate-cves, /check, and API v2 Windows patch level. Full docs: https://breachspider.com/docs/api/correlate/ and https://breachspider.com/docs/api/windows-patch/. Per-key rate limit: 60 requests and 5,000 assets/hosts per minute by default (429 with error.detail.retry_after). Behavior change 2026-09-26: cves[] defaults to priority order; use options.sort=score for the previous order."
+ },
+ "servers": [
+  {
+   "url": "https://breachspider.com"
+  }
+ ],
+ "components": {
+  "securitySchemes": {
+   "bearerAuth": {
+    "type": "http",
+    "scheme": "bearer",
+    "description": "bs_live_ API key. v2 submissions need the write scope."
+   }
+  },
+  "schemas": {
+   "ApiMeta": {
+    "type": "object",
+    "properties": {
+     "version": {
+      "type": "string"
+     },
+     "request_id": {
+      "type": "string"
+     },
+     "timestamp": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "processing_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    }
+   },
+   "ErrorEnvelope": {
+    "type": "object",
+    "required": [
+     "error"
+    ],
+    "properties": {
+     "api": {
+      "$ref": "#/components/schemas/ApiMeta"
+     },
+     "error": {
+      "type": "object",
+      "required": [
+       "code",
+       "message"
+      ],
+      "properties": {
+       "code": {
+        "type": "string",
+        "description": "General code, e.g. AUTH_REQUIRED, VALIDATION_ERROR, RATE_LIMITED, UNKNOWN_PARAMETER."
+       },
+       "message": {
+        "type": "string"
+       },
+       "detail": {
+        "description": "Specific error: for v2 an object with error, message and extra fields such as retry_after; for validation errors a list of {field, message, type}."
+       }
+      }
+     }
+    }
+   },
+   "Fix": {
+    "type": "object",
+    "properties": {
+     "available": {
+      "type": "boolean"
+     },
+     "action": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "stored",
+         "derived",
+         "microsoft"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "derived": {
+      "type": "boolean",
+      "description": "true when taken from the affected version range, not a vendor fix statement"
+     }
+    }
+   },
+   "FixGroup": {
+    "type": "object",
+    "properties": {
+     "fix": {
+      "type": "string",
+      "description": "The action, e.g. 'upgrade beyond 3.11', 'install KB5122876 (latest cumulative, build 10.0.17763.9245)', 'ESU required (or upgrade the OS)', 'no fix known'."
+     },
+     "fix_type": {
+      "type": "string",
+      "enum": [
+       "version",
+       "vendor",
+       "kb",
+       "esu",
+       "none"
+      ]
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "derived": {
+      "type": "boolean"
+     },
+     "cve_ids": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "CVEs this action clears, in priority order."
+     },
+     "counts": {
+      "type": "object",
+      "properties": {
+       "total": {
+        "type": "integer"
+       },
+       "confirmed": {
+        "type": "integer"
+       },
+       "known_exploited": {
+        "type": "integer"
+       },
+       "exploit_available": {
+        "type": "integer"
+       }
+      }
+     },
+     "highest_score": {
+      "type": "object",
+      "properties": {
+       "bcs": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "cvss": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      }
+     },
+     "group_rank": {
+      "type": "integer"
+     },
+     "kb": {
+      "type": "string",
+      "description": "Windows only."
+     },
+     "kbs_covered": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Windows only: the per-CVE KBs this action supersedes."
+     }
+    }
+   },
+   "FixPlanStep": {
+    "type": "object",
+    "properties": {
+     "fix": {
+      "type": "string"
+     },
+     "derived": {
+      "type": "boolean"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "clears": {
+      "type": "object",
+      "properties": {
+       "cves": {
+        "type": "integer"
+       },
+       "known_exploited": {
+        "type": "integer"
+       },
+       "groups": {
+        "type": "integer"
+       }
+      }
+     },
+     "note": {
+      "type": "string",
+      "description": "Present on every derived step: derived from affected version ranges; confirm the target release in the vendor's advisory, as it may not exist in this product line."
+     }
+    }
+   },
+   "FixPlan": {
+    "anyOf": [
+     {
+      "type": "object",
+      "properties": {
+       "to_clear_known_exploited": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/FixPlanStep"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "to_clear_all_fixable": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/FixPlanStep"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      }
+     },
+     {
+      "type": "null"
+     }
+    ]
+   },
+   "FixSummaryItem": {
+    "type": "object",
+    "properties": {
+     "rank": {
+      "type": "integer"
+     },
+     "fix": {
+      "type": "string"
+     },
+     "product": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "fix_type": {
+      "type": "string"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "derived": {
+      "type": "boolean"
+     },
+     "asset_ids": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "counts": {
+      "type": "object",
+      "properties": {
+       "assets": {
+        "type": "integer"
+       },
+       "cves": {
+        "type": "integer"
+       },
+       "known_exploited": {
+        "type": "integer"
+       },
+       "exploit_available": {
+        "type": "integer"
+       },
+       "confirmed": {
+        "type": "integer"
+       }
+      }
+     },
+     "highest_score": {
+      "type": "object",
+      "properties": {
+       "bcs": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "cvss": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "CvePage": {
+    "type": "object",
+    "properties": {
+     "page": {
+      "type": "integer"
+     },
+     "page_size": {
+      "type": "integer"
+     },
+     "total": {
+      "type": "integer",
+      "description": "After filters."
+     },
+     "total_unfiltered": {
+      "type": "integer"
+     },
+     "has_more": {
+      "type": "boolean"
+     }
+    }
+   },
+   "Warning": {
+    "type": "object",
+    "properties": {
+     "code": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string"
+     }
+    }
+   },
+   "CorrelateAsset": {
+    "type": "object",
+    "required": [
+     "asset_id",
+     "vendor",
+     "product"
+    ],
+    "properties": {
+     "asset_id": {
+      "type": "string",
+      "description": "Your identifier, echoed. Use a non-identifying id."
+     },
+     "vendor": {
+      "type": "string"
+     },
+     "product": {
+      "type": "string"
+     },
+     "version": {
+      "anyOf": [
+       {
+        "type": "string",
+        "description": "Software or firmware version used for matching."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "firmware_version": {
+      "anyOf": [
+       {
+        "type": "string",
+        "description": "Used for matching when version is empty (warning VERSION_FROM_FIRMWARE)."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "product_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    }
+   },
+   "CorrelateOptions": {
+    "type": "object",
+    "properties": {
+     "min_confidence": {
+      "type": "string",
+      "enum": [
+       "LOW",
+       "MEDIUM",
+       "HIGH"
+      ],
+      "default": "MEDIUM"
+     },
+     "include_capec": {
+      "type": "boolean",
+      "description": "Default false for API keys (true in the web app)."
+     },
+     "cve_page": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
+     },
+     "cve_page_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Default 250 for API keys."
+     },
+     "sort": {
+      "type": "string",
+      "enum": [
+       "priority",
+       "score",
+       "exploit",
+       "newest"
+      ],
+      "default": "priority",
+      "description": "Order of each asset's cves[], applied before paging. priority: confirmed -> known-exploited -> exploit/PoC -> fix (installable, then ESU-required, then none) -> BCS -> CVSS -> EPSS. score: the previous order. exploit: KEV -> exploit/PoC -> EPSS -> CVSS. newest: published date. Any other value -> 422."
+     },
+     "confirmed_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only CVEs confirmed for the supplied version / confirmed open."
+     },
+     "known_exploited_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only CVEs on the CISA KEV catalog."
+     },
+     "fix_available_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only CVEs with a known fix (stored, derived, KB or ESU)."
+     }
+    }
+   },
+   "CorrelateRequest": {
+    "type": "object",
+    "required": [
+     "assets"
+    ],
+    "properties": {
+     "assets": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+       "$ref": "#/components/schemas/CorrelateAsset"
+      }
+     },
+     "options": {
+      "$ref": "#/components/schemas/CorrelateOptions"
+     }
+    }
+   },
+   "CorrelatedCVE": {
+    "type": "object",
+    "description": "The full CVE object (scoring, exploitation, affected, patch, classification, sage, temporal, references, _links) plus the fields below.",
+    "properties": {
+     "cve_id": {
+      "type": "string"
+     },
+     "match_tier": {
+      "type": "string",
+      "enum": [
+       "EXACT",
+       "RANGE",
+       "PRODUCT_WIDE"
+      ]
+     },
+     "affected_range": {
+      "type": "object",
+      "properties": {
+       "cpe_version": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "is_range": {
+        "type": "boolean"
+       },
+       "version_start": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "version_start_inclusive": {
+        "anyOf": [
+         {
+          "type": "boolean"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "version_end": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "version_end_inclusive": {
+        "anyOf": [
+         {
+          "type": "boolean"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      }
+     },
+     "priority_rank": {
+      "type": "integer",
+      "description": "1 = first, across all pages."
+     },
+     "priority_reason": {
+      "type": "string"
+     },
+     "fix": {
+      "$ref": "#/components/schemas/Fix"
+     },
+     "capec": {
+      "type": "array",
+      "description": "Only with include_capec: true.",
+      "items": {
+       "type": "object"
+      }
+     }
+    },
+    "additionalProperties": true
+   },
+   "CorrelateResult": {
+    "type": "object",
+    "properties": {
+     "asset_id": {
+      "type": "string"
+     },
+     "submitted": {
+      "type": "object"
+     },
+     "resolution": {
+      "type": "object",
+      "properties": {
+       "status": {
+        "type": "string",
+        "enum": [
+         "resolved",
+         "ambiguous",
+         "unresolved"
+        ]
+       },
+       "coverage": {
+        "anyOf": [
+         {
+          "type": "string",
+          "enum": [
+           "covered",
+           "partial",
+           "no_cpe_data"
+          ]
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "confidence": {
+        "type": "integer"
+       },
+       "confidence_band": {
+        "type": "string",
+        "enum": [
+         "HIGH",
+         "MEDIUM",
+         "LOW"
+        ]
+       },
+       "vendor": {
+        "anyOf": [
+         {
+          "type": "object"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "product": {
+        "anyOf": [
+         {
+          "type": "object"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "cpe": {
+        "anyOf": [
+         {
+          "type": "object"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "match_basis": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "candidates": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      }
+     },
+     "cves": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/CorrelatedCVE"
+      }
+     },
+     "cves_page": {
+      "$ref": "#/components/schemas/CvePage"
+     },
+     "fix_groups": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/FixGroup"
+      }
+     },
+     "fix_plan": {
+      "$ref": "#/components/schemas/FixPlan"
+     },
+     "needs_review": {
+      "type": "boolean"
+     },
+     "correlated_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "result_hash": {
+      "type": "string",
+      "description": "sha256 of the resolved identity and every (CVE, tier) pair; independent of sort, filters and page."
+     },
+     "warnings": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Warning"
+      }
+     }
+    }
+   },
+   "CorrelateResponse": {
+    "type": "object",
+    "properties": {
+     "api": {
+      "$ref": "#/components/schemas/ApiMeta"
+     },
+     "data": {
+      "type": "object",
+      "properties": {
+       "results": {
+        "type": "array",
+        "items": {
+         "$ref": "#/components/schemas/CorrelateResult"
+        }
+       },
+       "summary": {
+        "type": "object"
+       },
+       "fix_summary": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+         "$ref": "#/components/schemas/FixSummaryItem"
+        }
+       }
+      }
+     },
+     "meta": {
+      "type": "object",
+      "properties": {
+       "sort": {
+        "type": "string",
+        "enum": [
+         "priority",
+         "score",
+         "exploit",
+         "newest"
+        ],
+        "default": "priority",
+        "description": "Order of each asset's cves[], applied before paging. priority: confirmed -> known-exploited -> exploit/PoC -> fix (installable, then ESU-required, then none) -> BCS -> CVSS -> EPSS. score: the previous order. exploit: KEV -> exploit/PoC -> EPSS -> CVSS. newest: published date. Any other value -> 422."
+       },
+       "filters": {
+        "type": "object"
+       },
+       "cve_paging": {
+        "type": "object"
+       },
+       "capec_source": {
+        "type": "object"
+       }
+      },
+      "additionalProperties": true
+     },
+     "_links": {
+      "type": "object"
+     }
+    }
+   },
+   "CheckRequest": {
+    "type": "object",
+    "required": [
+     "assets"
+    ],
+    "properties": {
+     "assets": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+       "allOf": [
+        {
+         "$ref": "#/components/schemas/CorrelateAsset"
+        },
+        {
+         "type": "object",
+         "properties": {
+          "result_hash": {
+           "anyOf": [
+            {
+             "type": "string"
+            },
+            {
+             "type": "null"
+            }
+           ]
+          }
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "CheckResponse": {
+    "type": "object",
+    "properties": {
+     "api": {
+      "$ref": "#/components/schemas/ApiMeta"
+     },
+     "data": {
+      "type": "object",
+      "properties": {
+       "results": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "asset_id": {
+           "type": "string"
+          },
+          "changed": {
+           "type": "boolean"
+          },
+          "current_hash": {
+           "type": "string"
+          },
+          "reason": {
+           "type": "string"
+          }
+         }
+        }
+       },
+       "changed": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "meta": {
+      "type": "object"
+     },
+     "_links": {
+      "type": "object"
+     }
+    }
+   },
+   "WindowsHost": {
+    "type": "object",
+    "required": [
+     "asset_id",
+     "os_product",
+     "edition_id",
+     "os_build",
+     "architecture",
+     "collected_at"
+    ],
+    "description": "Identifying fields (hostname, fqdn, domain, ip, mac, user, owner, serial, license/product key, install path, site, customer, location and variants) are refused with forbidden_field; unknown fields with unknown_field.",
+    "properties": {
+     "asset_id": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Scrubbed id; must not look like an IP, MAC or domain name (forbidden_value)."
+     },
+     "os_product": {
+      "type": "string",
+      "example": "Windows Server 2019 Standard"
+     },
+     "edition_id": {
+      "type": "string",
+      "example": "ServerStandard"
+     },
+     "display_version": {
+      "type": "string",
+      "example": "1809"
+     },
+     "os_build": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)+$",
+      "example": "10.0.17763.7792",
+      "description": "Full build 10.0.<CurrentBuild>.<UBR>; three parts are accepted with warning needs_revision."
+     },
+     "architecture": {
+      "type": "string",
+      "enum": [
+       "x64",
+       "x86",
+       "arm64"
+      ]
+     },
+     "installation_type": {
+      "type": "string",
+      "enum": [
+       "Server",
+       "Server Core",
+       "Client"
+      ],
+      "description": "Required for server editions."
+     },
+     "installed_kbs": {
+      "type": "array",
+      "items": {
+       "type": "string",
+       "pattern": "^KB[0-9]+$"
+      },
+      "description": "Collected: values present. Collected, none found: empty with kb_source. Not collected: both empty/omitted."
+     },
+     "kb_source": {
+      "type": "string",
+      "description": "Required when installed_kbs is sent, e.g. 'WMI QuickFixEngineering'."
+     },
+     "esu_enrolled": {
+      "type": "string",
+      "enum": [
+       "yes",
+       "no"
+      ]
+     },
+     "collected_at": {
+      "type": "string",
+      "format": "date-time",
+      "example": "2026-09-25T14:02:00Z"
+     }
+    }
+   },
+   "InstalledSoftware": {
+    "type": "object",
+    "required": [
+     "asset_id",
+     "name"
+    ],
+    "properties": {
+     "asset_id": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "publisher": {
+      "type": "string"
+     },
+     "version": {
+      "type": "string"
+     }
+    }
+   },
+   "WindowsOptions": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "include_cleared": {
+      "type": "boolean",
+      "default": true
+     },
+     "sort": {
+      "type": "string",
+      "enum": [
+       "priority",
+       "score",
+       "exploit",
+       "newest"
+      ],
+      "default": "priority",
+      "description": "Order of each asset's cves[], applied before paging. priority: confirmed -> known-exploited -> exploit/PoC -> fix (installable, then ESU-required, then none) -> BCS -> CVSS -> EPSS. score: the previous order. exploit: KEV -> exploit/PoC -> EPSS -> CVSS. newest: published date. Any other value -> 422."
+     },
+     "confirmed_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only CVEs confirmed for the supplied version / confirmed open."
+     },
+     "known_exploited_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only CVEs on the CISA KEV catalog."
+     },
+     "fix_available_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only CVEs with a known fix (stored, derived, KB or ESU)."
+     },
+     "cve_page": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
+     },
+     "cve_page_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Paging is off unless set: every CVE is returned."
+     }
+    }
+   },
+   "WindowsRequest": {
+    "type": "object",
+    "required": [
+     "environment_id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "environment_id": {
+      "type": "integer"
+     },
+     "windows_hosts": {
+      "type": "array",
+      "maxItems": 200,
+      "description": "At most 200 (413 above); keep calls at 100 or fewer.",
+      "items": {
+       "$ref": "#/components/schemas/WindowsHost"
+      }
+     },
+     "installed_software": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/InstalledSoftware"
+      }
+     },
+     "options": {
+      "$ref": "#/components/schemas/WindowsOptions"
+     }
+    }
+   },
+   "WindowsCVE": {
+    "type": "object",
+    "properties": {
+     "cve_id": {
+      "type": "string"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "confirmed open",
+       "cleared (patched)",
+       "needs review"
+      ]
+     },
+     "fixed_build": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "kb": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "severity": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "known_exploited": {
+      "anyOf": [
+       {
+        "type": "boolean",
+        "description": "Confirmed open only."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "priority_rank": {
+      "type": "integer"
+     },
+     "priority_reason": {
+      "type": "string"
+     },
+     "fix": {
+      "$ref": "#/components/schemas/Fix"
+     }
+    }
+   },
+   "WindowsHostResult": {
+    "type": "object",
+    "properties": {
+     "asset_id": {
+      "type": "string"
+     },
+     "microsoft_product": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "candidate_products": {
+      "anyOf": [
+       {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "patch_resolved": {
+      "type": "boolean"
+     },
+     "end_of_life": {
+      "type": "boolean"
+     },
+     "labels": {
+      "type": "array",
+      "items": {
+       "type": "string",
+       "enum": [
+        "product-level (no build)",
+        "needs revision",
+        "product-level (not mapped)",
+        "resolved by build; edition not supplied",
+        "end of life"
+       ]
+      }
+     },
+     "map_note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "counts": {
+      "type": "object",
+      "properties": {
+       "confirmed_open": {
+        "type": "integer"
+       },
+       "cleared": {
+        "type": "integer"
+       },
+       "needs_review": {
+        "type": "integer"
+       }
+      }
+     },
+     "cves_page": {
+      "$ref": "#/components/schemas/CvePage"
+     },
+     "cves": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/WindowsCVE"
+      }
+     },
+     "fix_groups": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/FixGroup"
+      }
+     },
+     "warnings": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      }
+     }
+    }
+   },
+   "RejectedHost": {
+    "type": "object",
+    "properties": {
+     "asset_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "description": "null when the asset_id value itself was refused"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "errors": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "code": {
+         "type": "string",
+         "enum": [
+          "forbidden_field",
+          "forbidden_value",
+          "unknown_field",
+          "placeholder_value",
+          "missing_field",
+          "bare_windows",
+          "invalid_build",
+          "invalid_architecture",
+          "invalid_installation_type",
+          "missing_installation_type",
+          "invalid_kb",
+          "missing_kb_source",
+          "invalid_esu",
+          "invalid_collected_at"
+         ]
+        },
+        "field": {
+         "anyOf": [
+          {
+           "type": "string"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "message": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    }
+   },
+   "WindowsResponse": {
+    "type": "object",
+    "properties": {
+     "data": {
+      "type": "object",
+      "properties": {
+       "assets": {
+        "type": "array",
+        "items": {
+         "$ref": "#/components/schemas/WindowsHostResult"
+        }
+       },
+       "rejected": {
+        "type": "array",
+        "items": {
+         "$ref": "#/components/schemas/RejectedHost"
+        }
+       },
+       "software_stored": {
+        "type": "integer"
+       },
+       "software_rejected": {
+        "type": "array",
+        "items": {
+         "type": "object"
+        }
+       },
+       "fix_summary": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+         "$ref": "#/components/schemas/FixSummaryItem"
+        }
+       }
+      }
+     },
+     "meta": {
+      "type": "object",
+      "properties": {
+       "api_version": {
+        "type": "string"
+       },
+       "microsoft_data_as_of": {
+        "anyOf": [
+         {
+          "type": "string",
+          "format": "date-time"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "sort": {
+        "type": "string",
+        "enum": [
+         "priority",
+         "score",
+         "exploit",
+         "newest"
+        ],
+        "default": "priority",
+        "description": "Order of each asset's cves[], applied before paging. priority: confirmed -> known-exploited -> exploit/PoC -> fix (installable, then ESU-required, then none) -> BCS -> CVSS -> EPSS. score: the previous order. exploit: KEV -> exploit/PoC -> EPSS -> CVSS. newest: published date. Any other value -> 422."
+       },
+       "filters": {
+        "type": "object"
+       },
+       "took_ms": {
+        "type": "integer"
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "paths": {
+  "/api/v1/assets/correlate-cves": {
+   "post": {
+    "operationId": "correlateCves",
+    "summary": "Resolve and correlate up to 200 assets (stateless)",
+    "security": [
+     {
+      "bearerAuth": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CorrelateRequest"
+       },
+       "example": {
+        "assets": [
+         {
+          "asset_id": "EXAMPLE-SWITCH-01",
+          "vendor": "Moxa",
+          "product": "EDS-518A",
+          "version": "V3.5"
+         }
+        ]
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Per-asset resolution, ranked CVEs, fix groups and plan",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CorrelateResponse"
+        },
+        "example": {
+         "api": {
+          "version": "1.0.0",
+          "request_id": "bs-req-dfe090267833",
+          "timestamp": "2026-09-26T17:21:56.022398Z",
+          "processing_ms": 217
+         },
+         "data": {
+          "results": [
+           {
+            "asset_id": "EXAMPLE-SWITCH-01",
+            "submitted": {
+             "vendor": "Moxa",
+             "product": "EDS-518A",
+             "version": "V3.5",
+             "firmware_version": null,
+             "product_type": null
+            },
+            "resolution": {
+             "status": "resolved",
+             "coverage": "covered",
+             "confidence": 94,
+             "confidence_band": "HIGH",
+             "vendor": {
+              "id": 11418,
+              "name": "Moxa",
+              "slug": "moxa"
+             },
+             "product": {
+              "id": 178012,
+              "name": "EDS-518A",
+              "slug": "eds-518a"
+             },
+             "cpe": {
+              "vendor": "moxa",
+              "product": "eds-518a"
+             },
+             "match_basis": [
+              "cpe_alias",
+              "exact",
+              "prefix",
+              "substring",
+              "token",
+              "version:in_range"
+             ]
+            },
+            "candidates": [],
+            "cves": [
+             {
+              "cve_id": "CVE-2024-9137",
+              "bsid": "BS-2024-GLOBAL-046494-C",
+              "title": "The affected product lacks an authentication check when sending commands to the server via the Moxa service. This vulner",
+              "description": "The affected product lacks an authentication check when sending commands to the server via the Moxa service. This vulnerability allows an attacker to execute specified commands, potentially leading to unauthorized downloads or uploads of configuration files and system compromise.",
+              "scoring": {
+               "cvss": {
+                "score": 9.4,
+                "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:H",
+                "version": "3.1",
+                "severity": "CRITICAL",
+                "attack_vector": "NETWORK",
+                "attack_complexity": "LOW",
+                "privileges_required": "NONE",
+                "user_interaction": "NONE",
+                "scope": "UNCHANGED",
+                "confidentiality_impact": "LOW",
+                "integrity_impact": "HIGH",
+                "availability_impact": "HIGH"
+               },
+               "epss": {
+                "score": 0.00501,
+                "percentile": 0.4034,
+                "interpretation": "Below median exploitation probability"
+               },
+               "bcs": {
+                "score": 6.84,
+                "tier": "MEDIUM",
+                "factors": {
+                 "kev_flagged": false,
+                 "poc_available": false,
+                 "has_public_exploit": false,
+                 "patch_available": false,
+                 "ics_relevance": 0.7
+                }
+               }
+              },
+              "exploitation": {
+               "kev_flagged": false,
+               "kev_added_at": null,
+               "has_public_exploit": false,
+               "poc_available": false,
+               "exploit_maturity": "NONE",
+               "actively_exploited": false
+              },
+              "affected": {
+               "vendors": [
+                "Moxa"
+               ],
+               "products": [],
+               "primary_vendor": null,
+               "primary_product": null,
+               "vendor_count": 1,
+               "device_types": [
+                "Industrial Firewall"
+               ],
+               "protocols": [],
+               "ics_relevance_score": 0.7,
+               "ics_relevant": true
+              },
+              "patch": {
+               "status": "unknown",
+               "patch_available": false,
+               "patch_version": null,
+               "patch_url": null,
+               "patch_notes": null
+              },
+              "classification": {
+               "cwes": [
+                {
+                 "id": 306,
+                 "url": "https://cwe.mitre.org/data/definitions/306.html"
+                }
+               ],
+               "attack_vector": "NETWORK",
+               "attack_complexity": "LOW",
+               "privileges_required": "NONE",
+               "user_interaction": "NONE",
+               "scope": "UNCHANGED",
+               "layer": null,
+               "category": null
+              },
+              "sage": {
+               "model": "SAGE-v1",
+               "tier": "full",
+               "executive_summary": "CVE-2024-9137 affects Moxa products due to a lack of authentication checks when sending commands to the server via the Moxa service. This can lead to unauthorized command execution, potentially allowing attackers to download or upload configuration files and compromise the system. The CVSS score is 9.4, indicating a high severity level.",
+               "ics_context": null,
+               "remediation_guidance": null,
+               "confidence_score": null,
+               "confidence_tier": null,
+               "_upgrade_required": false,
+               "_upgrade_url": null
+              },
+              "temporal": {
+               "published_at": "2024-10-14T09:15:04+00:00",
+               "modified_at": "2026-06-17T08:24:01+00:00",
+               "enriched_at": "2026-05-22T15:36:48.504598+00:00",
+               "kev_added_at": null
+              },
+              "references": {
+               "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-9137",
+               "cisa_url": null,
+               "breachspider_url": "https://breachspider.com/ics-cve/CVE-2024-9137",
+               "vendor_advisories": [],
+               "cited_exclusive": null
+              },
+              "_links": {
+               "self": "/api/v1/cves/CVE-2024-9137",
+               "pdf": "/api/v1/ics-cve/CVE-2024-9137/pdf",
+               "html": "https://breachspider.com/ics-cve/CVE-2024-9137"
+              },
+              "match_tier": "RANGE",
+              "affected_range": {
+               "cpe_version": "*",
+               "is_range": true,
+               "version_start": "1.0",
+               "version_start_inclusive": true,
+               "version_end": "3.11",
+               "version_end_inclusive": true
+              },
+              "priority_rank": 1,
+              "priority_reason": "confirmed (affected 1.0 to 3.11), fix: upgrade beyond 3.11 (derived)",
+              "fix": {
+               "available": true,
+               "action": "upgrade beyond 3.11",
+               "source": "derived",
+               "derived": true
+              }
+             },
+             {
+              "cve_id": "CVE-2024-7695",
+              "bsid": "BS-2025-GLOBAL-043371-H",
+              "title": "Multiple switches are affected by an out-of-bounds write vulnerability. This vulnerability is caused by insufficient inp",
+              "description": "Multiple switches are affected by an out-of-bounds write vulnerability. This vulnerability is caused by insufficient input validation, which allows data to be written to memory outside the bounds of the buffer. Successful exploitation of this vulnerability could result in a denial-of-service attack.",
+              "scoring": {
+               "cvss": {
+                "score": 7.5,
+                "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                "version": "3.1",
+                "severity": "HIGH",
+                "attack_vector": "NETWORK",
+                "attack_complexity": "LOW",
+                "privileges_required": "NONE",
+                "user_interaction": "NONE",
+                "scope": "UNCHANGED",
+                "confidentiality_impact": "NONE",
+                "integrity_impact": "NONE",
+                "availability_impact": "HIGH"
+               },
+               "epss": {
+                "score": 0.00728,
+                "percentile": 0.52206,
+                "interpretation": "Above median exploitation probability"
+               },
+               "bcs": {
+                "score": 5.57,
+                "tier": "MEDIUM",
+                "factors": {
+                 "kev_flagged": false,
+                 "poc_available": false,
+                 "has_public_exploit": false,
+                 "patch_available": false,
+                 "ics_relevance": 0.15
+                }
+               }
+              },
+              "exploitation": {
+               "kev_flagged": false,
+               "kev_added_at": null,
+               "has_public_exploit": false,
+               "poc_available": false,
+               "exploit_maturity": "NONE",
+               "actively_exploited": false
+              },
+              "affected": {
+               "vendors": [],
+               "products": [],
+               "primary_vendor": null,
+               "primary_product": null,
+               "vendor_count": 0,
+               "device_types": [],
+               "protocols": [],
+               "ics_relevance_score": 0.15,
+               "ics_relevant": false
+              },
+              "patch": {
+               "status": "unknown",
+               "patch_available": false,
+               "patch_version": null,
+               "patch_url": null,
+               "patch_notes": null
+              },
+              "classification": {
+               "cwes": [
+                {
+                 "id": 787,
+                 "url": "https://cwe.mitre.org/data/definitions/787.html"
+                }
+               ],
+               "attack_vector": "NETWORK",
+               "attack_complexity": "LOW",
+               "privileges_required": "NONE",
+               "user_interaction": "NONE",
+               "scope": "UNCHANGED",
+               "layer": null,
+               "category": null
+              },
+              "sage": {
+               "model": "SAGE-v1",
+               "tier": "full",
+               "executive_summary": "Multiple switches are affected by an out-of-bounds write vulnerability due to insufficient input validation, which could lead to a denial-of-service attack.",
+               "ics_context": null,
+               "remediation_guidance": null,
+               "confidence_score": null,
+               "confidence_tier": null,
+               "_upgrade_required": false,
+               "_upgrade_url": null
+              },
+              "temporal": {
+               "published_at": "2025-01-29T08:15:19+00:00",
+               "modified_at": "2026-06-17T08:20:44+00:00",
+               "enriched_at": "2026-05-22T15:36:41.240464+00:00",
+               "kev_added_at": null
+              },
+              "references": {
+               "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-7695",
+               "cisa_url": null,
+               "breachspider_url": "https://breachspider.com/ics-cve/CVE-2024-7695",
+               "vendor_advisories": [],
+               "cited_exclusive": null
+              },
+              "_links": {
+               "self": "/api/v1/cves/CVE-2024-7695",
+               "pdf": "/api/v1/ics-cve/CVE-2024-7695/pdf",
+               "html": "https://breachspider.com/ics-cve/CVE-2024-7695"
+              },
+              "match_tier": "RANGE",
+              "affected_range": {
+               "cpe_version": "*",
+               "is_range": true,
+               "version_start": "1.0",
+               "version_start_inclusive": true,
+               "version_end": "3.11",
+               "version_end_inclusive": true
+              },
+              "priority_rank": 2,
+              "priority_reason": "confirmed (affected 1.0 to 3.11), fix: upgrade beyond 3.11 (derived)",
+              "fix": {
+               "available": true,
+               "action": "upgrade beyond 3.11",
+               "source": "derived",
+               "derived": true
+              }
+             },
+             {
+              "cve_id": "CVE-2024-9404",
+              "bsid": "BS-2024-GLOBAL-045007-H",
+              "title": "This vulnerability could lead to denial-of-service or service crashes. Exploitation of the moxa_cmd service, because of ",
+              "description": "This vulnerability could lead to denial-of-service or service crashes. Exploitation of the moxa_cmd service, because of insufficient input validation, allows attackers to disrupt operations. If exposed to public networks, the vulnerability poses a significant remote threat, potentially allowing attackers to shut down affected systems.",
+              "scoring": {
+               "cvss": {
+                "score": 7.5,
+                "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                "version": "3.1",
+                "severity": "HIGH",
+                "attack_vector": "NETWORK",
+                "attack_complexity": "LOW",
+                "privileges_required": "NONE",
+                "user_interaction": "NONE",
+                "scope": "UNCHANGED",
+                "confidentiality_impact": "NONE",
+                "integrity_impact": "NONE",
+                "availability_impact": "HIGH"
+               },
+               "epss": {
+                "score": 0.00752,
+                "percentile": 0.53063,
+                "interpretation": "Above median exploitation probability"
+               },
+               "bcs": {
+                "score": 4.9,
+                "tier": "MEDIUM",
+                "factors": {
+                 "kev_flagged": false,
+                 "poc_available": false,
+                 "has_public_exploit": false,
+                 "patch_available": false,
+                 "ics_relevance": 0.0
+                }
+               }
+              },
+              "exploitation": {
+               "kev_flagged": false,
+               "kev_added_at": null,
+               "has_public_exploit": false,
+               "poc_available": false,
+               "exploit_maturity": "NONE",
+               "actively_exploited": false
+              },
+              "affected": {
+               "vendors": [],
+               "products": [],
+               "primary_vendor": null,
+               "primary_product": null,
+               "vendor_count": 0,
+               "device_types": [],
+               "protocols": [],
+               "ics_relevance_score": 0.0,
+               "ics_relevant": false
+              },
+              "patch": {
+               "status": "unknown",
+               "patch_available": false,
+               "patch_version": null,
+               "patch_url": null,
+               "patch_notes": null
+              },
+              "classification": {
+               "cwes": [
+                {
+                 "id": 1287,
+                 "url": "https://cwe.mitre.org/data/definitions/1287.html"
+                }
+               ],
+               "attack_vector": "NETWORK",
+               "attack_complexity": "LOW",
+               "privileges_required": "NONE",
+               "user_interaction": "NONE",
+               "scope": "UNCHANGED",
+               "layer": null,
+               "category": null
+              },
+              "sage": {
+               "model": "SAGE-v1",
+               "tier": "full",
+               "executive_summary": "CVE-2024-9404 is a vulnerability in the moxa_cmd service due to insufficient input validation, which could lead to denial-of-service or service crashes. This poses a significant remote threat if exposed to public networks.",
+               "ics_context": null,
+               "remediation_guidance": null,
+               "confidence_score": null,
+               "confidence_tier": null,
+               "_upgrade_required": false,
+               "_upgrade_url": null
+              },
+              "temporal": {
+               "published_at": "2024-12-04T04:15:04+00:00",
+               "modified_at": "2026-06-17T08:24:30+00:00",
+               "enriched_at": "2026-05-22T15:36:44.448120+00:00",
+               "kev_added_at": null
+              },
+              "references": {
+               "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-9404",
+               "cisa_url": null,
+               "breachspider_url": "https://breachspider.com/ics-cve/CVE-2024-9404",
+               "vendor_advisories": [],
+               "cited_exclusive": null
+              },
+              "_links": {
+               "self": "/api/v1/cves/CVE-2024-9404",
+               "pdf": "/api/v1/ics-cve/CVE-2024-9404/pdf",
+               "html": "https://breachspider.com/ics-cve/CVE-2024-9404"
+              },
+              "match_tier": "RANGE",
+              "affected_range": {
+               "cpe_version": "*",
+               "is_range": true,
+               "version_start": "1.0",
+               "version_start_inclusive": true,
+               "version_end": "3.11",
+               "version_end_inclusive": true
+              },
+              "priority_rank": 3,
+              "priority_reason": "confirmed (affected 1.0 to 3.11), fix: upgrade beyond 3.11 (derived)",
+              "fix": {
+               "available": true,
+               "action": "upgrade beyond 3.11",
+               "source": "derived",
+               "derived": true
+              }
+             }
+            ],
+            "cves_page": {
+             "page": 1,
+             "page_size": 250,
+             "total": 3,
+             "total_unfiltered": 3,
+             "has_more": false
+            },
+            "fix_groups": [
+             {
+              "fix": "upgrade beyond 3.11",
+              "fix_type": "version",
+              "source": "derived",
+              "derived": true,
+              "cve_ids": [
+               "CVE-2024-9137",
+               "CVE-2024-7695",
+               "CVE-2024-9404"
+              ],
+              "counts": {
+               "total": 3,
+               "confirmed": 3,
+               "known_exploited": 0,
+               "exploit_available": 0
+              },
+              "highest_score": {
+               "bcs": 6.84,
+               "cvss": 9.4
+              },
+              "group_rank": 1
+             }
+            ],
+            "fix_plan": {
+             "to_clear_known_exploited": null,
+             "to_clear_all_fixable": {
+              "fix": "upgrade beyond 3.11",
+              "derived": true,
+              "source": "derived",
+              "clears": {
+               "cves": 3,
+               "known_exploited": 0,
+               "groups": 1
+              },
+              "note": "Derived from affected version ranges, not from a vendor fix statement. Confirm the target release in the vendor's advisory: that release may not exist in this product line."
+             }
+            },
+            "needs_review": false,
+            "correlated_at": "2026-09-26T17:21:56.022015+00:00",
+            "result_hash": "sha256:ee5e58d4b621d3ce37f9f3df9b924b0cfa7006e2323daefd1d6f2b84c561756a",
+            "warnings": []
+           }
+          ],
+          "summary": {
+           "total": 1,
+           "by_status": {
+            "resolved": 1,
+            "ambiguous": 0,
+            "unresolved": 0
+           },
+           "by_coverage": {
+            "covered": 1,
+            "no_cpe_data": 0,
+            "partial": 0,
+            "null": 0
+           }
+          },
+          "fix_summary": [
+           {
+            "rank": 1,
+            "fix": "upgrade beyond 3.11",
+            "product": "EDS-518A",
+            "fix_type": "version",
+            "source": "derived",
+            "derived": true,
+            "asset_ids": [
+             "EXAMPLE-SWITCH-01"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 3,
+             "known_exploited": 0,
+             "exploit_available": 0,
+             "confirmed": 3
+            },
+            "highest_score": {
+             "bcs": 6.84,
+             "cvss": 9.4
+            }
+           }
+          ]
+         },
+         "meta": {
+          "source": "breachspider-correlate",
+          "matcher": "stateless; same rules as stored matching",
+          "enrichment_version": "2.1",
+          "sage_model": "SAGE-v1",
+          "sort": "priority",
+          "filters": {
+           "confirmed_only": false,
+           "known_exploited_only": false,
+           "fix_available_only": false
+          },
+          "cve_paging": {
+           "page": 1,
+           "page_size": 250,
+           "note": "Per-asset CVE pages; see each result's cves_page. result_hash covers all CVEs."
+          }
+         },
+         "_links": {
+          "self": "/api/v1/assets/correlate-cves"
+         }
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "UNKNOWN_PARAMETER: query parameters are not accepted",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid, expired or revoked key",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "More than 200 assets (error.detail.error = batch_too_large)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation error, e.g. invalid sort",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "Per-key limit; error.detail.retry_after = seconds",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/assets/correlate-cves/check": {
+   "post": {
+    "operationId": "correlateCvesCheck",
+    "summary": "Cheap staleness check by result_hash",
+    "security": [
+     {
+      "bearerAuth": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CheckRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "changed true/false per asset",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CheckResponse"
+        },
+        "example": {
+         "api": {
+          "version": "1.0.0",
+          "request_id": "bs-req-d239fdd8afa6",
+          "timestamp": "2026-09-26T17:21:57.301209Z",
+          "processing_ms": 320
+         },
+         "data": {
+          "results": [
+           {
+            "asset_id": "EXAMPLE-SWITCH-01",
+            "changed": false,
+            "current_hash": "sha256:ee5e58d4b621d3ce37f9f3df9b924b0cfa7006e2323daefd1d6f2b84c561756a",
+            "reason": "identity and cve/tier set unchanged"
+           },
+           {
+            "asset_id": "EXAMPLE-SWITCH-02",
+            "changed": true,
+            "current_hash": "sha256:ee5e58d4b621d3ce37f9f3df9b924b0cfa7006e2323daefd1d6f2b84c561756a",
+            "reason": "resolved identity or cve/tier set differs from submitted hash"
+           }
+          ],
+          "changed": [
+           "EXAMPLE-SWITCH-02"
+          ]
+         },
+         "meta": {
+          "source": "breachspider-correlate",
+          "mode": "staleness-check"
+         },
+         "_links": {
+          "self": "/api/v1/assets/correlate-cves/check"
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Auth",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "More than 200 assets",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "Rate limited",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v2/assets/correlate": {
+   "post": {
+    "operationId": "windowsCorrelate",
+    "summary": "Submit Windows hosts (JSON) and get per-CVE patch status",
+    "security": [
+     {
+      "bearerAuth": []
+     }
+    ],
+    "description": "Requires the write scope. Hosts are validated individually; refused hosts are listed in data.rejected and nothing from them is stored. Returns 422 with the same body shape when every host is refused.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WindowsRequest"
+       },
+       "example": {
+        "environment_id": 12,
+        "windows_hosts": [
+         {
+          "asset_id": "WIN-EXAMPLE-01",
+          "os_product": "Windows Server 2019 Standard",
+          "edition_id": "ServerStandard",
+          "display_version": "1809",
+          "os_build": "10.0.17763.7792",
+          "architecture": "x64",
+          "installation_type": "Server",
+          "collected_at": "2026-09-25T14:02:00Z"
+         },
+         {
+          "asset_id": "WIN-EXAMPLE-02",
+          "os_product": "Windows Server 2012 R2 Standard",
+          "edition_id": "ServerStandard",
+          "os_build": "6.3.9600.21620",
+          "architecture": "x64",
+          "installation_type": "Server",
+          "installed_kbs": [
+           "KB5031419"
+          ],
+          "kb_source": "WMI QuickFixEngineering",
+          "esu_enrolled": "no",
+          "collected_at": "2026-09-25T14:02:00Z"
+         },
+         {
+          "asset_id": "WIN-EXAMPLE-03",
+          "hostname": "example-host",
+          "os_product": "Windows 10 Enterprise LTSC 2021",
+          "edition_id": "EnterpriseS",
+          "os_build": "10.0.19044.6332",
+          "architecture": "x64",
+          "installation_type": "Client",
+          "collected_at": "2026-09-25T14:02:00Z"
+         }
+        ],
+        "options": {
+         "include_cleared": false,
+         "cve_page_size": 3
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Results for accepted hosts; refused hosts in data.rejected",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WindowsResponse"
+        },
+        "example": {
+         "data": {
+          "assets": [
+           {
+            "asset_id": "WIN-EXAMPLE-01",
+            "microsoft_product": "Windows Server 2019",
+            "candidate_products": null,
+            "patch_resolved": true,
+            "end_of_life": false,
+            "labels": [],
+            "map_note": null,
+            "counts": {
+             "confirmed_open": 1653,
+             "cleared": 3949,
+             "needs_review": 3
+            },
+            "cves_page": {
+             "page": 1,
+             "page_size": 3,
+             "total": 1656,
+             "total_unfiltered": 1656,
+             "has_more": true
+            },
+            "cves": [
+             {
+              "cve_id": "CVE-2025-59287",
+              "status": "confirmed open",
+              "fixed_build": "10.0.17763.7922",
+              "kb": "KB5070883",
+              "source": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Oct",
+              "severity": "Critical",
+              "known_exploited": true,
+              "note": null,
+              "priority_rank": 1,
+              "priority_reason": "confirmed open (build below 10.0.17763.7922), known-exploited, proof-of-concept available, fix: install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+              "fix": {
+               "available": true,
+               "action": "install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+               "source": "microsoft",
+               "derived": false
+              }
+             },
+             {
+              "cve_id": "CVE-2026-21510",
+              "status": "confirmed open",
+              "fixed_build": "10.0.17763.8389",
+              "kb": "KB5075904",
+              "source": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Feb",
+              "severity": "Important",
+              "known_exploited": true,
+              "note": null,
+              "priority_rank": 2,
+              "priority_reason": "confirmed open (build below 10.0.17763.8389), known-exploited, proof-of-concept available, fix: install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+              "fix": {
+               "available": true,
+               "action": "install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+               "source": "microsoft",
+               "derived": false
+              }
+             },
+             {
+              "cve_id": "CVE-2025-62215",
+              "status": "confirmed open",
+              "fixed_build": "10.0.17763.8027",
+              "kb": "KB5068791",
+              "source": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Nov",
+              "severity": "Important",
+              "known_exploited": true,
+              "note": null,
+              "priority_rank": 3,
+              "priority_reason": "confirmed open (build below 10.0.17763.8027), known-exploited, public exploit available, fix: install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+              "fix": {
+               "available": true,
+               "action": "install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+               "source": "microsoft",
+               "derived": false
+              }
+             }
+            ],
+            "fix_groups": [
+             {
+              "fix": "install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+              "fix_type": "kb",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2025-59287",
+               "CVE-2026-21510",
+               "CVE-2025-62215",
+               "CVE-2025-62221",
+               "CVE-2026-33824"
+              ],
+              "counts": {
+               "total": 1653,
+               "confirmed": 1653,
+               "known_exploited": 17,
+               "exploit_available": 26
+              },
+              "highest_score": {
+               "bcs": 10.0,
+               "cvss": 9.9
+              },
+              "kb": "KB5122876",
+              "kbs_covered": [
+               "KB5066586",
+               "KB5068791",
+               "KB5070883",
+               "KB5071544",
+               "KB5073723",
+               "KB5075904",
+               "KB5078752",
+               "KB5082123",
+               "KB5087538",
+               "KB5094123",
+               "KB5099538",
+               "KB5120238",
+               "KB5122876"
+              ],
+              "group_rank": 1
+             },
+             {
+              "fix": "install KB4519337",
+              "fix_type": "kb",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2019-1316"
+              ],
+              "counts": {
+               "total": 1,
+               "confirmed": 0,
+               "known_exploited": 0,
+               "exploit_available": 0
+              },
+              "highest_score": {
+               "bcs": 5.86,
+               "cvss": 7.8
+              },
+              "kb": "KB4519337",
+              "kbs_covered": [
+               "KB4519337"
+              ],
+              "group_rank": 2
+             },
+             {
+              "fix": "install KB4558997",
+              "fix_type": "kb",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2020-1346"
+              ],
+              "counts": {
+               "total": 1,
+               "confirmed": 0,
+               "known_exploited": 0,
+               "exploit_available": 0
+              },
+              "highest_score": {
+               "bcs": 5.67,
+               "cvss": 7.8
+              },
+              "kb": "KB4558997",
+              "kbs_covered": [
+               "KB4558997"
+              ],
+              "group_rank": 3
+             },
+             {
+              "fix": "install KB4465664",
+              "fix_type": "kb",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2018-8566"
+              ],
+              "counts": {
+               "total": 1,
+               "confirmed": 0,
+               "known_exploited": 0,
+               "exploit_available": 0
+              },
+              "highest_score": {
+               "bcs": 3.49,
+               "cvss": 4.6
+              },
+              "kb": "KB4465664",
+              "kbs_covered": [
+               "KB4465664"
+              ],
+              "group_rank": 4
+             }
+            ],
+            "warnings": []
+           },
+           {
+            "asset_id": "WIN-EXAMPLE-02",
+            "microsoft_product": "Windows Server 2012 R2",
+            "candidate_products": null,
+            "patch_resolved": true,
+            "end_of_life": true,
+            "labels": [
+             "end of life"
+            ],
+            "map_note": null,
+            "counts": {
+             "confirmed_open": 1937,
+             "cleared": 2074,
+             "needs_review": 9
+            },
+            "cves_page": {
+             "page": 1,
+             "page_size": 3,
+             "total": 1946,
+             "total_unfiltered": 1946,
+             "has_more": true
+            },
+            "cves": [
+             {
+              "cve_id": "CVE-2025-59287",
+              "status": "confirmed open",
+              "fixed_build": "6.3.9600.22826",
+              "kb": "KB5070886",
+              "source": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Oct",
+              "severity": "Critical",
+              "known_exploited": true,
+              "note": null,
+              "priority_rank": 1,
+              "priority_reason": "confirmed open (build below 6.3.9600.22826), known-exploited, proof-of-concept available, fix: ESU required (KB5070886 is an Extended Security Update)",
+              "fix": {
+               "available": true,
+               "action": "ESU required (or upgrade the OS)",
+               "source": "microsoft",
+               "derived": false
+              }
+             },
+             {
+              "cve_id": "CVE-2025-33073",
+              "status": "confirmed open",
+              "fixed_build": "6.3.9600.22620",
+              "kb": "KB5061018",
+              "source": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Jun",
+              "severity": "Important",
+              "known_exploited": true,
+              "note": null,
+              "priority_rank": 2,
+              "priority_reason": "confirmed open (build below 6.3.9600.22620), known-exploited, public exploit available, fix: ESU required (KB5061018 is an Extended Security Update)",
+              "fix": {
+               "available": true,
+               "action": "ESU required (or upgrade the OS)",
+               "source": "microsoft",
+               "derived": false
+              }
+             },
+             {
+              "cve_id": "CVE-2024-49138",
+              "status": "confirmed open",
+              "fixed_build": "6.3.9600.22318",
+              "kb": "KB5048735",
+              "source": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2024-Dec",
+              "severity": "Important",
+              "known_exploited": true,
+              "note": null,
+              "priority_rank": 3,
+              "priority_reason": "confirmed open (build below 6.3.9600.22318), known-exploited, public exploit available, fix: ESU required (KB5048735 is an Extended Security Update)",
+              "fix": {
+               "available": true,
+               "action": "ESU required (or upgrade the OS)",
+               "source": "microsoft",
+               "derived": false
+              }
+             }
+            ],
+            "fix_groups": [
+             {
+              "fix": "ESU required (or upgrade the OS)",
+              "fix_type": "esu",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2025-59287",
+               "CVE-2025-33073",
+               "CVE-2024-49138",
+               "CVE-2024-38193",
+               "CVE-2025-30397"
+              ],
+              "counts": {
+               "total": 1938,
+               "confirmed": 1937,
+               "known_exploited": 45,
+               "exploit_available": 74
+              },
+              "highest_score": {
+               "bcs": 10.0,
+               "cvss": 9.9
+              },
+              "kb": "ESU",
+              "kbs_covered": [
+               "KB5032249",
+               "KB5033420",
+               "KB5034171",
+               "KB5034819",
+               "KB5035885",
+               "KB5036960",
+               "KB5037823",
+               "KB5039294",
+               "KB5040456",
+               "KB5041828",
+               "KB5043138",
+               "KB5044343",
+               "KB5044410",
+               "KB5046682",
+               "KB5048735",
+               "KB5050048",
+               "KB5052042",
+               "KB5053887",
+               "KB5055557",
+               "KB5058403",
+               "KB5061018",
+               "KB5062597",
+               "KB5063950",
+               "KB5065507",
+               "KB5066873",
+               "KB5068905",
+               "KB5070886",
+               "KB5071503",
+               "KB5073696",
+               "KB5075970",
+               "KB5078774",
+               "KB5082126",
+               "KB5087471",
+               "KB5094041",
+               "KB5099444",
+               "KB5120385",
+               "KB5123066"
+              ],
+              "group_rank": 1
+             },
+             {
+              "fix": "install KB4578013",
+              "fix_type": "kb",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2020-1530",
+               "CVE-2020-1537"
+              ],
+              "counts": {
+               "total": 2,
+               "confirmed": 0,
+               "known_exploited": 0,
+               "exploit_available": 0
+              },
+              "highest_score": {
+               "bcs": 6.0,
+               "cvss": 7.8
+              },
+              "kb": "KB4578013",
+              "kbs_covered": [
+               "KB4578013"
+              ],
+              "group_rank": 2
+             },
+             {
+              "fix": "install KB4566425",
+              "fix_type": "kb",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2020-1346"
+              ],
+              "counts": {
+               "total": 1,
+               "confirmed": 0,
+               "known_exploited": 0,
+               "exploit_available": 0
+              },
+              "highest_score": {
+               "bcs": 5.67,
+               "cvss": 7.8
+              },
+              "kb": "KB4566425",
+              "kbs_covered": [
+               "KB4566425"
+              ],
+              "group_rank": 3
+             },
+             {
+              "fix": "install KB5012170",
+              "fix_type": "kb",
+              "source": "microsoft",
+              "derived": false,
+              "cve_ids": [
+               "CVE-2022-34302",
+               "CVE-2020-0689",
+               "CVE-2022-34301",
+               "CVE-2022-34303",
+               "ADV200011"
+              ],
+              "counts": {
+               "total": 5,
+               "confirmed": 0,
+               "known_exploited": 0,
+               "exploit_available": 0
+              },
+              "highest_score": {
+               "bcs": 4.7,
+               "cvss": 6.7
+              },
+              "kb": "KB5012170",
+              "kbs_covered": [
+               "KB5012170"
+              ],
+              "group_rank": 4
+             }
+            ],
+            "warnings": []
+           }
+          ],
+          "rejected": [
+           {
+            "asset_id": "WIN-EXAMPLE-03",
+            "errors": [
+             {
+              "code": "forbidden_field",
+              "field": "hostname",
+              "message": "Field 'hostname' is not accepted: identifying data must not be sent. The field was not stored."
+             }
+            ]
+           }
+          ],
+          "software_stored": 0,
+          "software_rejected": [],
+          "fix_summary": [
+           {
+            "rank": 1,
+            "fix": "install KB5122876 (latest cumulative, build 10.0.17763.9245)",
+            "product": "Windows Server 2019",
+            "fix_type": "kb",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-01"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 1653,
+             "known_exploited": 17,
+             "exploit_available": 26,
+             "confirmed": 1653
+            },
+            "highest_score": {
+             "bcs": 10.0,
+             "cvss": 9.9
+            }
+           },
+           {
+            "rank": 2,
+            "fix": "ESU required (or upgrade the OS)",
+            "product": "Windows Server 2012 R2",
+            "fix_type": "esu",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-02"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 1938,
+             "known_exploited": 45,
+             "exploit_available": 74,
+             "confirmed": 1937
+            },
+            "highest_score": {
+             "bcs": 10.0,
+             "cvss": 9.9
+            }
+           },
+           {
+            "rank": 3,
+            "fix": "install KB4578013",
+            "product": "Windows Server 2012 R2",
+            "fix_type": "kb",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-02"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 2,
+             "known_exploited": 0,
+             "exploit_available": 0,
+             "confirmed": 0
+            },
+            "highest_score": {
+             "bcs": 6.0,
+             "cvss": 7.8
+            }
+           },
+           {
+            "rank": 4,
+            "fix": "install KB4519337",
+            "product": "Windows Server 2019",
+            "fix_type": "kb",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-01"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 1,
+             "known_exploited": 0,
+             "exploit_available": 0,
+             "confirmed": 0
+            },
+            "highest_score": {
+             "bcs": 5.86,
+             "cvss": 7.8
+            }
+           },
+           {
+            "rank": 5,
+            "fix": "install KB4558997",
+            "product": "Windows Server 2019",
+            "fix_type": "kb",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-01"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 1,
+             "known_exploited": 0,
+             "exploit_available": 0,
+             "confirmed": 0
+            },
+            "highest_score": {
+             "bcs": 5.67,
+             "cvss": 7.8
+            }
+           },
+           {
+            "rank": 6,
+            "fix": "install KB4566425",
+            "product": "Windows Server 2012 R2",
+            "fix_type": "kb",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-02"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 1,
+             "known_exploited": 0,
+             "exploit_available": 0,
+             "confirmed": 0
+            },
+            "highest_score": {
+             "bcs": 5.67,
+             "cvss": 7.8
+            }
+           },
+           {
+            "rank": 7,
+            "fix": "install KB5012170",
+            "product": "Windows Server 2012 R2",
+            "fix_type": "kb",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-02"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 5,
+             "known_exploited": 0,
+             "exploit_available": 0,
+             "confirmed": 0
+            },
+            "highest_score": {
+             "bcs": 4.7,
+             "cvss": 6.7
+            }
+           },
+           {
+            "rank": 8,
+            "fix": "install KB4465664",
+            "product": "Windows Server 2019",
+            "fix_type": "kb",
+            "source": "microsoft",
+            "derived": false,
+            "asset_ids": [
+             "WIN-EXAMPLE-01"
+            ],
+            "counts": {
+             "assets": 1,
+             "cves": 1,
+             "known_exploited": 0,
+             "exploit_available": 0,
+             "confirmed": 0
+            },
+            "highest_score": {
+             "bcs": 3.49,
+             "cvss": 4.6
+            }
+           }
+          ]
+         },
+         "meta": {
+          "api_version": "2",
+          "microsoft_data_as_of": "2026-09-25T07:00:00+00:00",
+          "sort": "priority",
+          "filters": {
+           "confirmed_only": false,
+           "known_exploited_only": false,
+           "fix_available_only": false
+          },
+          "took_ms": 2999
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Auth",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "insufficient_scope: key lacks write",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "environment_not_found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "batch_too_large (more than 200 hosts)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Either every host was refused (WindowsResponse body with data.rejected) or the request itself is invalid (ErrorEnvelope, e.g. invalid sort or unknown top-level field)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "oneOf": [
+          {
+           "$ref": "#/components/schemas/WindowsResponse"
+          },
+          {
+           "$ref": "#/components/schemas/ErrorEnvelope"
+          }
+         ]
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "rate_limited; error.detail.retry_after",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v2/assets/correlate-csv": {
+   "post": {
+    "operationId": "windowsCorrelateCsv",
+    "summary": "The CSV equivalent (multipart form)",
+    "security": [
+     {
+      "bearerAuth": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "environment_id",
+         "hosts"
+        ],
+        "properties": {
+         "environment_id": {
+          "type": "integer"
+         },
+         "hosts": {
+          "type": "string",
+          "format": "binary",
+          "description": "UTF-8 CSV, header row = host field names; installed_kbs semicolon-separated."
+         },
+         "software": {
+          "type": "string",
+          "format": "binary",
+          "description": "Optional CSV: asset_id,name,publisher,version"
+         },
+         "include_cleared": {
+          "type": "boolean"
+         },
+         "sort": {
+          "type": "string",
+          "enum": [
+           "priority",
+           "score",
+           "exploit",
+           "newest"
+          ],
+          "default": "priority",
+          "description": "Order of each asset's cves[], applied before paging. priority: confirmed -> known-exploited -> exploit/PoC -> fix (installable, then ESU-required, then none) -> BCS -> CVSS -> EPSS. score: the previous order. exploit: KEV -> exploit/PoC -> EPSS -> CVSS. newest: published date. Any other value -> 422."
+         },
+         "confirmed_only": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only CVEs confirmed for the supplied version / confirmed open."
+         },
+         "known_exploited_only": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only CVEs on the CISA KEV catalog."
+         },
+         "fix_available_only": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only CVEs with a known fix (stored, derived, KB or ESU)."
+         },
+         "cve_page": {
+          "type": "integer"
+         },
+         "cve_page_size": {
+          "type": "integer"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Same as the JSON call",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WindowsResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "unknown_form_field / missing_field",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Auth",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "insufficient_scope",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "environment_not_found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "batch_too_large",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "All hosts refused (WindowsResponse) or invalid option (ErrorEnvelope)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "oneOf": [
+          {
+           "$ref": "#/components/schemas/WindowsResponse"
+          },
+          {
+           "$ref": "#/components/schemas/ErrorEnvelope"
+          }
+         ]
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "rate_limited",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v2/assets/results": {
+   "get": {
+    "operationId": "windowsResults",
+    "summary": "Read stored results for an environment or one host",
+    "security": [
+     {
+      "bearerAuth": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "environment_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "asset_id",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "include_cleared",
+      "in": "query",
+      "schema": {
+       "type": "boolean",
+       "default": true
+      }
+     },
+     {
+      "name": "sort",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "enum": [
+        "priority",
+        "score",
+        "exploit",
+        "newest"
+       ],
+       "default": "priority",
+       "description": "Order of each asset's cves[], applied before paging. priority: confirmed -> known-exploited -> exploit/PoC -> fix (installable, then ESU-required, then none) -> BCS -> CVSS -> EPSS. score: the previous order. exploit: KEV -> exploit/PoC -> EPSS -> CVSS. newest: published date. Any other value -> 422."
+      }
+     },
+     {
+      "name": "confirmed_only",
+      "in": "query",
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "description": "Only CVEs confirmed for the supplied version / confirmed open."
+      }
+     },
+     {
+      "name": "known_exploited_only",
+      "in": "query",
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "description": "Only CVEs on the CISA KEV catalog."
+      }
+     },
+     {
+      "name": "fix_available_only",
+      "in": "query",
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "description": "Only CVEs with a known fix (stored, derived, KB or ESU)."
+      }
+     },
+     {
+      "name": "cve_page",
+      "in": "query",
+      "schema": {
+       "type": "integer",
+       "minimum": 1
+      }
+     },
+     {
+      "name": "cve_page_size",
+      "in": "query",
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 1000
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Stored results",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WindowsResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Auth",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "environment_not_found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid option",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "rate_limited",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

@@ -10,6 +10,9 @@ HTTP client.
 - Automatic 429 backoff so a naive loop over thousands of CVEs won't trip the edge limit.
 - Typed exceptions that surface the API's own helpful error messages.
 - The API key is never printed, logged, or included in an exception.
+- **New in 0.2.0:** asset correlation (API v1) and Windows patch level (API v2), with the
+  exposure-priority ranking, fix groups and fix plans. See the [changelog](CHANGELOG.md): the API's default
+  CVE order changed to `priority`.
 
 ## Install
 
@@ -231,6 +234,46 @@ except NotFoundError as e:
 All inherit from `breachspider.BreachSpiderError`. Network failures raise
 `APIConnectionError` (never leaking the request or key).
 
+## Correlate assets (API v1)
+
+Send your inventory (vendor, product, version); get each asset's CVEs ranked by what's exposed and what to fix
+first, the fix actions, and a fix plan. Nothing is stored server-side.
+
+```python
+device = {"asset_id": "EXAMPLE-SWITCH-01", "vendor": "Moxa", "product": "EDS-518A", "version": "V3.5"}
+resp = bs.correlate.correlate([device])          # sort="priority" by default; also "score", "exploit", "newest"
+result = resp.results[0]
+for cve in result.cves:
+    print(cve.priority_rank, cve.cve_id, cve.priority_reason)
+print(result.fix_groups[0].fix, result.fix_plan)
+every_page = bs.correlate.all_cves(device)       # follows cves_page.has_more for you
+```
+
+Filters: `confirmed_only`, `known_exploited_only`, `fix_available_only`. `result_hash` never depends on sort, filters
+or page; use `bs.correlate.check(...)` to re-correlate only what changed. Guide: [docs/correlate.md](docs/correlate.md).
+
+## Windows patch level (API v2)
+
+Send Windows build and KB facts; get confirmed open / cleared / needs review per CVE from Microsoft's own data, with
+fix actions such as "install KB5122876 (latest cumulative, build 10.0.17763.9245)". Submitting needs a
+**write-scoped** key.
+
+```python
+hosts = [{"asset_id": "WIN-EXAMPLE-01", "os_product": "Windows Server 2019 Standard", "edition_id": "ServerStandard",
+          "os_build": "10.0.17763.7792", "architecture": "x64", "installation_type": "Server",
+          "collected_at": "2026-09-25T14:02:00Z"}]
+resp = bs.windows.correlate(12, hosts, include_cleared=False)
+for r in resp.rejected:                          # refused hosts (e.g. an identifying field); nothing stored
+    print(r.asset_id, r.error_codes)
+for batch in bs.windows.correlate_batched(12, many_hosts):   # calls of 100 hosts or fewer
+    ...
+bs.windows.correlate_csv(12, "hosts.csv")        # the same from a CSV file
+bs.windows.results(12, asset_id="WIN-EXAMPLE-01", cve_page_size=50)
+```
+
+Guide: [docs/windows-v2.md](docs/windows-v2.md). Examples for every endpoint: [examples/](examples/). OpenAPI
+document for these endpoints: [openapi/breachspider-openapi.json](openapi/breachspider-openapi.json).
+
 ## Writes
 
 Reads work with any key. Writes (`environments.create`, `environments.add_asset`,
@@ -265,7 +308,8 @@ BREACHSPIDER_SKIP_INTEGRATION=1 pytest
 ```
 
 The integration tests are marked `@pytest.mark.integration` and are skipped
-automatically if the API is unreachable or the env var is set.
+automatically if the API is unreachable or the env var is set. The correlate and Windows tests run against
+responses recorded from the live API (`tests/fixtures/`), so they need no key and no network.
 
 ## License
 

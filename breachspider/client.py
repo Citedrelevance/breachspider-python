@@ -135,12 +135,16 @@ class Client:
         from .resources.environments import Environments
         from .resources.watchlist import Watchlist
         from .resources.reports import Reports
+        from .resources.correlate import Correlate
+        from .resources.windows import Windows
 
         self.cves = CVEs(self)
         self.catalog = Catalog(self)
         self.environments = Environments(self)
         self.watchlist = Watchlist(self)
         self.reports = Reports(self)
+        self.correlate = Correlate(self)      # API v1: stateless asset -> CVE correlation
+        self.windows = Windows(self)          # API v2: Windows patch-level results
 
     # -- constructors -------------------------------------------------------
 
@@ -217,8 +221,17 @@ class Client:
         *,
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any]] = None,
+        accept_statuses: Tuple[int, ...] = (),
     ) -> Dict[str, Any]:
-        """Perform one request, map errors, update quota, return parsed JSON."""
+        """Perform one request, map errors, update quota, return parsed JSON.
+
+        ``data``/``files`` send a multipart form (used by the v2 CSV upload).
+        ``accept_statuses`` lists error statuses whose body is a normal result
+        rather than an error envelope (API v2 returns 422 with ``data.rejected``
+        when every host in a call is refused).
+        """
         url = self._url(path)
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -236,6 +249,8 @@ class Client:
                     url,
                     params=clean_params,
                     json=json,
+                    data=data,
+                    files=files,
                     headers=headers,
                     timeout=self.timeout,
                 )
@@ -254,12 +269,19 @@ class Client:
                 self._quota = q
 
             if resp.status_code == 429 and attempt < self.max_retries:
-                retry_after = _retry_after_seconds(resp.headers)
+                retry_after = _retry_after_seconds(resp.headers, resp)
                 time.sleep(retry_after if retry_after is not None else self._backoff(attempt))
                 attempt += 1
                 continue
 
             if resp.status_code >= 400:
+                if resp.status_code in accept_statuses:
+                    try:
+                        body = resp.json()
+                    except ValueError:
+                        body = None
+                    if isinstance(body, dict) and isinstance(body.get("data"), dict):
+                        return body
                 raise self._to_exception(resp)
 
             if resp.status_code == 204 or not resp.content:
@@ -315,7 +337,7 @@ class Client:
         if status == 422:
             return exc.ValidationError(message, **kw)
         if status == 429:
-            return exc.RateLimitError(message, retry_after=_retry_after_seconds(resp.headers), **kw)
+            return exc.RateLimitError(message, retry_after=_retry_after_seconds(resp.headers, resp), **kw)
         if status >= 500:
             return exc.ServerError(message, **kw)
         return exc.APIError(message, **kw)
@@ -440,8 +462,18 @@ def _next_request(
     return None
 
 
-def _retry_after_seconds(headers: Any) -> Optional[float]:
+def _retry_after_seconds(headers: Any, resp: Any = None) -> Optional[float]:
+    """Seconds to wait before retrying: the ``Retry-After`` header, else the
+    per-key limiter's ``error.detail.retry_after`` in the response body."""
     val = headers.get("Retry-After")
+    if val is None and resp is not None:
+        try:
+            body = resp.json()
+            detail = (body.get("error") or {}).get("detail") if isinstance(body, dict) else None
+            if isinstance(detail, dict):
+                val = detail.get("retry_after")
+        except (ValueError, AttributeError):
+            val = None
     if val is None:
         return None
     try:
