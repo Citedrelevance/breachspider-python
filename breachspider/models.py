@@ -342,7 +342,7 @@ class VendorAdvisory:
 
     url: str
     title: Optional[str] = None
-    source: Optional[str] = None            # "nvd_vendor_advisory" or "vendor_cna"
+    source: Optional[str] = None            # "nvd_vendor_advisory", "vendor_cna" or "cisa_csaf_vendor_reference"
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "VendorAdvisory":

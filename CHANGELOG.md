@@ -17,6 +17,8 @@ while the major version is 0, a minor release may include behavior changes, and 
   capped at 25 per CVE, with `references.other_references_total` giving the full count (full list on `nvd_url`).
 - `vendor_advisories` also covers 58 vendors' advisory domains that differ from the vendor name (for example android.com for
   Google), each approved on NVD evidence; on those domains only NVD `Vendor Advisory`-tagged links count.
+- `vendor_advisories` also includes the vendor advisory that CISA's CSAF document states for the CVE (a `self`
+  reference), when it is on the matched vendor's own domain (`source: "cisa_csaf_vendor_reference"`, with CISA's title).
 - **CISA ICS advisories.** Each CVE's `references.cisa_ics_advisories` lists the CISA ICS advisories that name it
   (`{advisory_id, url, title, published}`), from CISA's own CSAF documents; the URL is the page each document states.
 - **The same references on every CVE-returning endpoint:** `GET /api/v1/cves/{id}` (vendor context = the CVE's catalog
