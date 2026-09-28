@@ -337,6 +337,47 @@ class CvePage:
 
 
 @dataclass
+class VendorAdvisory:
+    """A vendor's own advisory for a CVE, from ``references.vendor_advisories``."""
+
+    url: str
+    title: Optional[str] = None
+    source: Optional[str] = None            # "nvd_vendor_advisory" or "vendor_cna"
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "VendorAdvisory":
+        return cls(url=d.get("url") or "", title=d.get("title"), source=d.get("source"))
+
+
+@dataclass
+class OtherReference:
+    """Any other NVD reference for a CVE, from ``references.other_references``. Not vendor-verified."""
+
+    url: str
+    tags: list = field(default_factory=list)
+    provided_by: Optional[str] = None       # NVD submitter, e.g. "cve@mitre.org"
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "OtherReference":
+        return cls(url=d.get("url") or "", tags=list(d.get("tags") or []), provided_by=d.get("provided_by"))
+
+
+@dataclass
+class CisaIcsAdvisory:
+    """A CISA ICS advisory that lists a CVE, from ``references.cisa_ics_advisories``."""
+
+    advisory_id: str
+    url: str
+    title: Optional[str] = None
+    published: Optional[str] = None         # YYYY-MM-DD
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CisaIcsAdvisory":
+        return cls(advisory_id=d.get("advisory_id") or "", url=d.get("url") or "", title=d.get("title"),
+                   published=d.get("published"))
+
+
+@dataclass
 class CorrelatedCVE:
     """One CVE in a v1 correlate result: the full CVE object plus match and priority fields."""
 
@@ -349,6 +390,11 @@ class CorrelatedCVE:
     cvss_score: Optional[float] = None
     bcs_score: Optional[float] = None
     kev_flagged: Optional[bool] = None
+    vendor_advisories: list = field(default_factory=list)   # list[VendorAdvisory]
+    cve_org_url: Optional[str] = None
+    other_references: list = field(default_factory=list)    # list[OtherReference], at most 25
+    other_references_total: int = 0
+    cisa_ics_advisories: list = field(default_factory=list)  # list[CisaIcsAdvisory]
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -357,7 +403,13 @@ class CorrelatedCVE:
                    priority_reason=d.get("priority_reason"), fix=Fix.from_dict(d.get("fix")),
                    affected_range=dict(d.get("affected_range") or {}),
                    cvss_score=_get(d, "scoring.cvss.score"), bcs_score=_get(d, "scoring.bcs.score"),
-                   kev_flagged=_get(d, "exploitation.kev_flagged"), raw=d)
+                   kev_flagged=_get(d, "exploitation.kev_flagged"),
+                   vendor_advisories=[VendorAdvisory.from_dict(v) for v in (_get(d, "references.vendor_advisories") or [])],
+                   cve_org_url=_get(d, "references.cve_org_url"),
+                   other_references=[OtherReference.from_dict(o) for o in (_get(d, "references.other_references") or [])],
+                   other_references_total=int(_get(d, "references.other_references_total") or 0),
+                   cisa_ics_advisories=[CisaIcsAdvisory.from_dict(x) for x in (_get(d, "references.cisa_ics_advisories") or [])],
+                   raw=d)
 
     @property
     def confirmed(self) -> bool:
@@ -451,6 +503,7 @@ class WindowsCVE:
     priority_rank: Optional[int] = None
     priority_reason: Optional[str] = None
     fix: Fix = field(default_factory=Fix)
+    references: Dict[str, Any] = field(default_factory=dict)   # nvd_url, cve_org_url, vendor_advisories, cisa_ics_advisories, ...
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -458,7 +511,7 @@ class WindowsCVE:
         return cls(cve_id=d.get("cve_id"), status=d.get("status"), fixed_build=d.get("fixed_build"), kb=d.get("kb"),
                    source=d.get("source"), severity=d.get("severity"), known_exploited=d.get("known_exploited"),
                    note=d.get("note"), priority_rank=d.get("priority_rank"), priority_reason=d.get("priority_reason"),
-                   fix=Fix.from_dict(d.get("fix")), raw=d)
+                   fix=Fix.from_dict(d.get("fix")), references=dict(d.get("references") or {}), raw=d)
 
 
 @dataclass

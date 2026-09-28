@@ -3,6 +3,28 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## Unreleased
+
+### Added
+- **Vendor advisory links in API v1 correlate.** Each CVE's `references.vendor_advisories` is now filled with the
+  vendor's own advisories (`{url, title, source}`) instead of always being empty. A link is included only when it is
+  on the matched vendor's own domain and NVD tagged it `Vendor Advisory` (`source: "nvd_vendor_advisory"`) or the
+  vendor, as the CVE's CNA, published it (`source: "vendor_cna"`). No link is constructed or guessed; `title` is
+  `null` (NVD references have no titles). `patch.patch_url` and `result_hash` are unchanged.
+- `CorrelatedCVE.vendor_advisories` (list of the new `VendorAdvisory` model).
+- **More references in API v1 correlate.** Each CVE now also has `references.cve_org_url` (the official CVE record)
+  and `references.other_references`: every other NVD reference as `{url, tags, provided_by}`, not vendor-verified,
+  capped at 25 per CVE, with `references.other_references_total` giving the full count (full list on `nvd_url`).
+- `vendor_advisories` also covers 58 vendors' advisory domains that differ from the vendor name (for example android.com for
+  Google), each approved on NVD evidence; on those domains only NVD `Vendor Advisory`-tagged links count.
+- **CISA ICS advisories.** Each CVE's `references.cisa_ics_advisories` lists the CISA ICS advisories that name it
+  (`{advisory_id, url, title, published}`), from CISA's own CSAF documents; the URL is the page each document states.
+- **The same references on every CVE-returning endpoint:** `GET /api/v1/cves/{id}` (vendor context = the CVE's catalog
+  vendors) and the v2 Windows results (each CVE gains a `references` object). New SDK model `CisaIcsAdvisory`;
+  `CorrelatedCVE.cisa_ics_advisories`; `WindowsCVE.references`.
+- `CorrelatedCVE.cve_org_url`, `CorrelatedCVE.other_references` (list of the new `OtherReference` model) and
+  `CorrelatedCVE.other_references_total`.
+
 ## 0.2.0 — 2026-09-26
 
 ### ⚠ Behavior change (API, affects every correlate caller)
