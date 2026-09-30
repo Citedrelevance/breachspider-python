@@ -3,7 +3,7 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
-## Unreleased
+## 0.3.0 (2026-09-30)
 
 ### Added
 - **Vendor advisory links in API v1 correlate.** Each CVE's `references.vendor_advisories` is now filled with the
@@ -27,10 +27,10 @@ while the major version is 0, a minor release may include behavior changes, and 
 - `CorrelatedCVE.cve_org_url`, `CorrelatedCVE.other_references` (list of the new `OtherReference` model) and
   `CorrelatedCVE.other_references_total`.
 
-## 0.2.0 — 2026-09-26
+## 0.2.0 (2026-09-26)
 
 ### ⚠ Behavior change (API, affects every correlate caller)
-- **The API now returns each asset's CVEs in `priority` order by default** — confirmed for the asset's version,
+- **The API now returns each asset's CVEs in `priority` order by default**: confirmed for the asset's version,
   then known-exploited, then public exploit or proof-of-concept available, then fix available (directly installable
   before ESU-required), then BCS, CVSS and EPSS. This applies to `POST /api/v1/assets/correlate-cves` and to every
   API v2 Windows endpoint. **To keep the previous order, pass `sort="score"`.** `result_hash` is unchanged and does not
@@ -65,6 +65,6 @@ while the major version is 0, a minor release may include behavior changes, and 
 - `429` handling now honors the per-key limiter's `error.detail.retry_after` when no `Retry-After` header is sent.
 - `Client.request()` accepts `data=`/`files=` (multipart) and `accept_statuses=`.
 
-## 0.1.0 — 2026-07-19
+## 0.1.0 (2026-07-19)
 
 - First release: CVEs, catalog, environments, reports, watchlist; pagination; 429 backoff; typed errors; quota headers.

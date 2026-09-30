@@ -2,14 +2,16 @@
 
 Official Python client for the [BreachSpider](https://breachspider.com) ICS/OT
 CVE intelligence API. Go from zero to working queries in about ten seconds from
-clone to first query — most of it `pip install` — instead of writing your own
+clone to first query (most of it `pip install`) instead of writing your own
 HTTP client.
 
-- Typed objects for CVEs, vendors, products, environments, and assets — not raw dicts.
+- Typed objects for CVEs, vendors, products, environments, and assets, not raw dicts.
 - Transparent pagination that absorbs the API's per-endpoint shapes.
 - Automatic 429 backoff so a naive loop over thousands of CVEs won't trip the edge limit.
 - Typed exceptions that surface the API's own helpful error messages.
 - The API key is never printed, logged, or included in an exception.
+- **New in 0.3.0:** cited source references on every CVE: vendor advisories, CISA ICS advisories and the
+  CVE.org record. See the [changelog](CHANGELOG.md).
 - **New in 0.2.0:** asset correlation (API v1) and Windows patch level (API v2), with the
   exposure-priority ranking, fix groups and fix plans. See the [changelog](CHANGELOG.md): the API's default
   CVE order changed to `priority`.
@@ -32,7 +34,7 @@ import breachspider
 
 bs = breachspider.Client.demo()
 
-# Find a vendor — read the slug from the response, never hand-craft it.
+# Find a vendor. Read the slug from the response, never hand-craft it.
 vendor = bs.catalog.vendor("schneider electric")
 print(vendor.id, vendor.name, vendor.slug)   # 11529 Schneider-Electric schneider-electric
 
@@ -105,14 +107,14 @@ bs = breachspider.Client.demo()
 for cve in itertools.islice(bs.cves.search(vendor="siemens", kev=True, sort_by="cvss"), 5):
     print(cve.cve_id, cve.cvss_score, cve.severity)
 
-# One CVE by id (rich detail — nested scoring/exploitation/patch in .raw).
+# One CVE by id (rich detail; nested scoring/exploitation/patch in .raw).
 cve = bs.cves.get("CVE-2025-32433")
 print(cve.cve_id, cve.severity, cve.cvss_score, cve.html_url)
 ```
 
 ## Pagination
 
-Every `search`/`by_vendor`/`assets` call is a lazy iterator — it fetches the
+Every `search`/`by_vendor`/`assets` call is a lazy iterator: it fetches the
 next page only as you consume it, and stops at the end. Page size defaults to
 100 (the maximum). Different endpoints paginate differently (`per_page` vs
 `limit`, `_links.next` vs page numbers vs offset); the SDK handles all of them.
@@ -166,11 +168,11 @@ print("page_delay:", bs.page_delay, "max_retries:", bs.max_retries)
 
 ## Quota / usage headers
 
-With a demo token (`Client.demo()`), `bs.quota` is always `None` — demo
+With a demo token (`Client.demo()`), `bs.quota` is always `None`; demo
 traffic is not metered.
 
 With a `bs_live_` key, every response carries `X-RateLimit-*` headers that the
-client parses into `bs.quota` after any call. Metering is **observe-only** today —
+client parses into `bs.quota` after any call. Metering is **observe-only** today:
 usage is reported but nothing is rejected. Unlimited tiers report the string
 `"unlimited"`.
 
@@ -194,7 +196,7 @@ except AuthenticationError:
 ## Error handling
 
 Errors map to typed exceptions that keep the server's own message and structured
-detail — the most useful part.
+detail, the most useful part.
 
 ```python
 import breachspider
@@ -279,14 +281,14 @@ document for these endpoints: [openapi/breachspider-openapi.json](openapi/breach
 Reads work with any key. Writes (`environments.create`, `environments.add_asset`,
 `watchlist.add`, `environments.create_ticket`, `reports.generate`) require a
 **write-scoped** `bs_live_` key and are rejected for demo tokens. Session-only
-operations — API-key management, webhook delivery, billing, and account
-settings — are intentionally **not** part of this SDK; they can never be called
+operations (API-key management, webhook delivery, billing, and account
+settings) are intentionally **not** part of this SDK; they can never be called
 with a key.
 
 ## Honest limits
 
 - **Per page:** 100 results maximum on every paid tier (10 on Free). There is no
-  pagination depth cap — you can page through the entire result set.
+  pagination depth cap; you can page through the entire result set.
 - **No product/version/CPE filter** on `/cves` yet. Filter by `vendor` (slug).
 - **Metering is observe-only.** Usage is counted and returned in headers, but no
   request is rejected for exceeding a monthly allowance today.
