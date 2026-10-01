@@ -43,7 +43,7 @@ changed = bs.correlate.check([{**device, "result_hash": result.result_hash}])
 | `assets[].product_type` | no | Hint such as `PLC`, `HMI`, `Server` |
 | `options.min_confidence` | no | `LOW`, `MEDIUM` (default), `HIGH`: resolutions below it return no CVEs and `needs_review` |
 | `options.include_capec` | no | Add MITRE CAPEC to each CVE. Default **false for API keys** |
-| `options.cve_page`, `options.cve_page_size` | no | Per-asset CVE paging; page size 1–1,000, default **250 for API keys** |
+| `options.cve_page`, `options.cve_page_size` | no | Per-asset CVE paging; page size 1 to 1,000, default **250 for API keys** |
 | `options.sort` | no | `priority` (default), `score`, `exploit`, `newest`; anything else → `422` |
 | `options.confirmed_only`, `known_exploited_only`, `fix_available_only` | no | Filters, off by default |
 
@@ -64,7 +64,7 @@ Each CVE carries `priority_rank` (1 = first, across all pages), `priority_reason
 
 ## Fix actions
 
-Per CVE, first that applies: a stored fixed version (`upgrade to <v>`); else derived from the affected range —
+Per CVE, first that applies: a stored fixed version (`upgrade to <v>`); else derived from the affected range:
 exclusive end: `upgrade to <end> or later`, inclusive end: `upgrade beyond <end>` (labelled `derived`); else a stored
 "patched" status (`vendor fix available (version not recorded)`); else `no fix known`.
 
@@ -74,7 +74,7 @@ vendor's advisory: it may not exist in the product line.**
 - `fix_groups[]`: one per distinct action (all filtered CVEs, all pages), `no fix known` last, ranked by each group's
   highest-priority CVE. Fields: `fix`, `fix_type`, `source`, `derived`, `cve_ids`, `counts` (`total`, `confirmed`,
   `known_exploited`, `exploit_available`), `highest_score`, `group_rank`.
-- `fix_plan`: `to_clear_known_exploited` and `to_clear_all_fixable` — the single upgrade that moves past every
+- `fix_plan`: `to_clear_known_exploited` and `to_clear_all_fixable`: the single upgrade that moves past every
   relevant affected range, with what it clears. Derived steps carry the note above. Assumes one release line.
 - `data.fix_summary[]`: the top 10 fix actions across all assets in the call.
 
@@ -87,7 +87,7 @@ vendor's advisory: it may not exist in the product line.**
 | `PRODUCT_WIDE` | No version bound, or no version supplied: not confirmed for this version |
 
 `resolution.status`: `resolved`, `ambiguous` (see `candidates`, no CVEs), `unresolved`. `confidence_band`: `HIGH` ≥ 80,
-`MEDIUM` 60–79, `LOW` < 60. `coverage`: `covered`, `partial`, `no_cpe_data` (empty list is undetermined, not clean).
+`MEDIUM` 60 to 79, `LOW` < 60. `coverage`: `covered`, `partial`, `no_cpe_data` (empty list is undetermined, not clean).
 Warnings include `NO_VERSION_SUPPLIED`, `VERSION_FROM_FIRMWARE`, `PRODUCT_WIDE_MATCH`, `NO_CPE_DATA`, `NEEDS_REVIEW`,
 `FIRMWARE_UNPARSEABLE`, `VERSION_SUFFIX_APPROXIMATE`, `VERSION_SUFFIX_IGNORED`, `AMBIGUOUS_RESOLUTION`; handle unknown
 codes gracefully.

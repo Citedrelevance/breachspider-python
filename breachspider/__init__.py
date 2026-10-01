@@ -36,6 +36,8 @@ from .models import (
     WindowsHostResult,
     RejectedHost,
     WindowsResponse,
+    WindowsChange,
+    WindowsChangesResponse,
 )
 from .exceptions import (
     BreachSpiderError,
@@ -80,6 +82,8 @@ __all__ = [
     "WindowsHostResult",
     "RejectedHost",
     "WindowsResponse",
+    "WindowsChange",
+    "WindowsChangesResponse",
     # exceptions
     "BreachSpiderError",
     "APIConnectionError",

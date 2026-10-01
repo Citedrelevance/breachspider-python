@@ -530,6 +530,8 @@ class WindowsHostResult:
     cves_page: Optional[CvePage] = None
     fix_groups: list = field(default_factory=list)      # list[FixGroup]
     warnings: list = field(default_factory=list)
+    #: Stateless checks only: fingerprint of the host's full decision set, for ``windows.check_changes``.
+    result_hash: Optional[str] = None
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -541,7 +543,7 @@ class WindowsHostResult:
                    cves=[WindowsCVE.from_dict(c) for c in (d.get("cves") or [])],
                    cves_page=CvePage.from_dict(d.get("cves_page")),
                    fix_groups=[FixGroup.from_dict(g) for g in (d.get("fix_groups") or [])],
-                   warnings=list(d.get("warnings") or []), raw=d)
+                   warnings=list(d.get("warnings") or []), result_hash=d.get("result_hash"), raw=d)
 
 
 @dataclass
@@ -588,6 +590,50 @@ class WindowsResponse:
     def all_refused(self) -> bool:
         return not self.assets and bool(self.rejected)
 
+    @property
+    def stored(self) -> bool:
+        """False for a stateless check (``windows.check``): nothing about the hosts was saved."""
+        return self.meta.get("stored") is not False
+
+
+@dataclass
+class WindowsChange:
+    """One host from ``windows.check_changes``: whether its result differs from the hash you sent."""
+
+    asset_id: Optional[str]
+    changed: bool = False
+    current_hash: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "WindowsChange":
+        return cls(asset_id=d.get("asset_id"), changed=bool(d.get("changed")), current_hash=d.get("current_hash"),
+                   raw=d)
+
+
+@dataclass
+class WindowsChangesResponse:
+    """A whole ``POST /api/v2/assets/check-windows/changes`` response. Nothing is stored."""
+
+    results: list = field(default_factory=list)         # list[WindowsChange]
+    rejected: list = field(default_factory=list)        # list[RejectedHost]
+    changed: list = field(default_factory=list)         # asset_ids whose result changed
+    meta: Dict[str, Any] = field(default_factory=dict)
+    status_code: int = 200                  # 422 when every host in the call was refused
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, body: Dict[str, Any], status_code: int = 200) -> "WindowsChangesResponse":
+        data = body.get("data") or {}
+        return cls(results=[WindowsChange.from_dict(r) for r in (data.get("results") or [])],
+                   rejected=[RejectedHost.from_dict(r) for r in (data.get("rejected") or [])],
+                   changed=list(data.get("changed") or []), meta=dict(body.get("meta") or {}),
+                   status_code=status_code, raw=body)
+
+    @property
+    def all_refused(self) -> bool:
+        return not self.results and bool(self.rejected)
+
 
 __all__ = [
     "Vendor",
@@ -612,4 +658,6 @@ __all__ = [
     "WindowsHostResult",
     "RejectedHost",
     "WindowsResponse",
+    "WindowsChange",
+    "WindowsChangesResponse",
 ]

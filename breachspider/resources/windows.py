@@ -1,7 +1,11 @@
 """API v2 Windows patch-level results.
 
-``POST /api/v2/assets/correlate`` (JSON), ``POST /api/v2/assets/correlate-csv`` (multipart CSV) and
+Stored mode: ``POST /api/v2/assets/correlate`` (JSON), ``POST /api/v2/assets/correlate-csv`` (multipart CSV) and
 ``GET /api/v2/assets/results``. Submitting needs a key with the ``write`` scope; reading results needs ``read``.
+
+Stateless mode: ``POST /api/v2/assets/check-windows`` and ``POST /api/v2/assets/check-windows/changes``. The same
+per-CVE decisions as stored mode, but nothing about the hosts is saved and no environment is needed. Any API key
+works, read-only included; trial keys, demo tokens and browser sessions are refused.
 
 Hosts are validated one by one: a refused host is listed in ``rejected`` and nothing from it is stored, while the
 other hosts in the call are processed. When every host is refused the API answers 422 with the same body shape;
@@ -15,14 +19,16 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
 from . import _Resource
-from ..models import SORT_MODES, WindowsCVE, WindowsResponse
+from ..models import SORT_MODES, WindowsChangesResponse, WindowsCVE, WindowsResponse
 
 BASE = "/api/v2/assets"
-#: Hard limit per call (413 above it).
-MAX_HOSTS_PER_CALL = 200
-#: Recommended batch size: about 0.85 s of processing per host, and responses through breachspider.com must finish
-#: within 100 s, so keep calls at 100 hosts or fewer.
-RECOMMENDED_HOSTS_PER_CALL = 100
+#: Hard limit per call (413 above it). A full host response takes about 1.8 s, and responses through
+#: breachspider.com must finish within 100 s, so the API accepts at most 25 hosts per call.
+MAX_HOSTS_PER_CALL = 25
+#: Default batch size for :meth:`Windows.correlate_batched` and :meth:`Windows.check_batched`: the per-call limit.
+RECOMMENDED_HOSTS_PER_CALL = MAX_HOSTS_PER_CALL
+#: Hard limit per :meth:`Windows.check_changes` call (evaluation only, so it is cheaper per host).
+MAX_CHANGES_PER_CALL = 200
 
 
 def _options(**kw: Any) -> Dict[str, Any]:
@@ -67,9 +73,10 @@ class Windows(_Resource):
         cve_page: Optional[int] = None,
         cve_page_size: Optional[int] = None,
     ) -> WindowsResponse:
-        """Submit up to 200 Windows hosts (JSON) and get per-CVE status for each.
+        """Submit up to 25 Windows hosts (JSON) and get per-CVE status for each.
 
-        Keep calls at :data:`RECOMMENDED_HOSTS_PER_CALL` (100) or fewer; use :meth:`correlate_batched` for more.
+        The API refuses more than :data:`MAX_HOSTS_PER_CALL` (25) hosts per call with 413; use
+        :meth:`correlate_batched` for more.
         Paging (``cve_page``, ``cve_page_size``) is off by default: every CVE is returned.
         """
         items = list(hosts)
@@ -138,6 +145,77 @@ class Windows(_Resource):
             params[k] = _form_value(v)
         return WindowsResponse.from_dict(self._client.request("GET", f"{BASE}/results", params=params))
 
+    # -- stateless mode -------------------------------------------------------
+
+    def check(
+        self,
+        hosts: Iterable[Dict[str, Any]],
+        *,
+        include_cleared: Optional[bool] = None,
+        sort: Optional[str] = None,
+        confirmed_only: Optional[bool] = None,
+        known_exploited_only: Optional[bool] = None,
+        fix_available_only: Optional[bool] = None,
+        cve_page: Optional[int] = None,
+        cve_page_size: Optional[int] = None,
+    ) -> WindowsResponse:
+        """Check up to 25 Windows hosts without storing anything (``POST /api/v2/assets/check-windows``).
+
+        Returns the same per-CVE decisions as :meth:`correlate` (confirmed open, cleared or needs review, with the
+        fixed build, KB and Microsoft source), but no host, result or finding is saved and no environment is needed.
+        Works with any API key, read-only included. Trial keys, demo tokens and browser sessions are refused.
+
+        Each host is the same dict as for :meth:`correlate` (``asset_id``, ``os_product``, ``edition_id``,
+        ``os_build``, ``architecture``, ``collected_at`` and the optional fields). Identifying fields are refused
+        exactly as in stored mode. Each accepted host carries a ``result_hash``; keep it and use
+        :meth:`check_changes` later to learn cheaply which hosts changed. ``response.stored`` is False.
+        Use :meth:`check_batched` for more than 25 hosts.
+        """
+        items = list(hosts)
+        if len(items) > MAX_HOSTS_PER_CALL:
+            raise ValueError(f"At most {MAX_HOSTS_PER_CALL} hosts per call (got {len(items)}); use check_batched().")
+        body: Dict[str, Any] = {"windows_hosts": items}
+        opts = _options(include_cleared=include_cleared, sort=sort, confirmed_only=confirmed_only,
+                        known_exploited_only=known_exploited_only, fix_available_only=fix_available_only,
+                        cve_page=cve_page, cve_page_size=cve_page_size)
+        if opts:
+            body["options"] = opts
+        resp_body = self._client.request("POST", f"{BASE}/check-windows", json=body, accept_statuses=(422,))
+        data = resp_body.get("data") or {}
+        return WindowsResponse.from_dict(resp_body, status_code=422 if not data.get("assets") and data.get("rejected") else 200)
+
+    def check_batched(
+        self,
+        hosts: Iterable[Dict[str, Any]],
+        *,
+        batch_size: int = RECOMMENDED_HOSTS_PER_CALL,
+        **options: Any,
+    ) -> Iterator[WindowsResponse]:
+        """Split a large host list into :meth:`check` calls of ``batch_size`` (default and max 25) and yield each
+        response. Nothing is stored."""
+        if not (1 <= batch_size <= MAX_HOSTS_PER_CALL):
+            raise ValueError(f"batch_size must be between 1 and {MAX_HOSTS_PER_CALL}")
+        items = list(hosts)
+        for start in range(0, len(items), batch_size):
+            if start and self._client.page_delay:
+                time.sleep(self._client.page_delay)
+            yield self.check(items[start:start + batch_size], **options)
+
+    def check_changes(self, hosts: Iterable[Dict[str, Any]]) -> WindowsChangesResponse:
+        """Learn which hosts' results changed, without storing anything (``POST /api/v2/assets/check-windows/changes``).
+
+        Send up to 200 hosts, each the same dict as for :meth:`check` plus the ``result_hash`` from an earlier
+        :meth:`check`. Only the decisions are re-evaluated, so it costs about a tenth of a full check per host.
+        Call :meth:`check` again only for the hosts in ``response.changed``.
+        """
+        items = list(hosts)
+        if len(items) > MAX_CHANGES_PER_CALL:
+            raise ValueError(f"At most {MAX_CHANGES_PER_CALL} hosts per call (got {len(items)}).")
+        resp_body = self._client.request("POST", f"{BASE}/check-windows/changes", json={"windows_hosts": items},
+                                         accept_statuses=(422,))
+        data = resp_body.get("data") or {}
+        return WindowsChangesResponse.from_dict(resp_body, status_code=422 if not data.get("results") and data.get("rejected") else 200)
+
     # -- helpers --------------------------------------------------------------
 
     def correlate_batched(
@@ -149,7 +227,7 @@ class Windows(_Resource):
         software: Optional[Iterable[Dict[str, Any]]] = None,
         **options: Any,
     ) -> Iterator[WindowsResponse]:
-        """Split a large host list into calls of ``batch_size`` (default 100, max 200) and yield each response.
+        """Split a large host list into calls of ``batch_size`` (default and max 25) and yield each response.
 
         Installed software rows are sent with the batch that contains their host. The per-key rate limit
         (default 60 requests and 5,000 hosts per minute) is handled by the client's automatic 429 backoff.

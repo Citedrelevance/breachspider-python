@@ -98,7 +98,7 @@ def test_results_and_host_paging(client):
 
 
 @responses.activate
-def test_batching_helper_splits_into_calls_of_100(client):
+def test_batching_helper_splits_into_calls_of_25(client):
     r = rec("v2_correlate")["response"]
     calls = []
 
@@ -110,10 +110,67 @@ def test_batching_helper_splits_into_calls_of_100(client):
     hosts = [{"asset_id": f"WIN-EXAMPLE-{i:03d}"} for i in range(250)]
     software = [{"asset_id": "WIN-EXAMPLE-150", "name": "Example App", "publisher": "Example", "version": "1.0"}]
     out = list(client.windows.correlate_batched(12, hosts, software=software))
-    assert RECOMMENDED_HOSTS_PER_CALL == 100
-    assert [c[0] for c in calls] == [100, 100, 50] and len(out) == 3
-    assert [c[1] for c in calls] == [0, 1, 0]                   # software rides with its host's batch
+    assert RECOMMENDED_HOSTS_PER_CALL == 25
+    assert [c[0] for c in calls] == [25] * 10 and len(out) == 10
+    assert [c[1] for c in calls] == [0] * 6 + [1] + [0] * 3     # software rides with its host's batch
     with pytest.raises(ValueError):
-        list(client.windows.correlate_batched(12, hosts, batch_size=201))
-    with pytest.raises(ValueError, match="At most 200 hosts"):
+        list(client.windows.correlate_batched(12, hosts, batch_size=26))
+    with pytest.raises(ValueError, match="At most 25 hosts"):
         client.windows.correlate(12, hosts)
+
+
+# ------------------------------------------------------------ stateless mode (check-windows)
+
+@responses.activate
+def test_check_is_stateless_and_carries_result_hash(client):
+    r = rec("v2_check_windows")
+    responses.add(responses.POST, f"{BASE}/check-windows", json=r["response"], status=r["status"])
+    out = client.windows.check(r["request"]["windows_hosts"], cve_page_size=3)
+    sent = json.loads(responses.calls[-1].request.body)
+    assert "environment_id" not in sent and sent["options"] == {"cve_page_size": 3}
+    assert out.stored is False and not out.all_refused
+    host = out.assets[0]
+    assert host.result_hash.startswith("sha256:")
+    assert host.cves and host.cves[0].status in ("confirmed open", "cleared (patched)", "needs review")
+    assert out.rejected[0].error_codes == ["forbidden_field"]
+
+
+@responses.activate
+def test_check_rejects_more_than_25_hosts_before_calling(client):
+    with pytest.raises(ValueError, match="At most 25 hosts"):
+        client.windows.check([{"asset_id": f"asset-{i}"} for i in range(26)])
+    assert len(responses.calls) == 0
+
+
+@responses.activate
+def test_check_batched_splits_into_calls_of_25(client):
+    r = rec("v2_check_windows")["response"]
+    sizes = []
+
+    def cb(req):
+        sizes.append(len(json.loads(req.body)["windows_hosts"]))
+        return (200, {}, json.dumps(r))
+    responses.add_callback(responses.POST, f"{BASE}/check-windows", callback=cb, content_type="application/json")
+    out = list(client.windows.check_batched([{"asset_id": f"asset-{i}"} for i in range(60)]))
+    assert sizes == [25, 25, 10] and len(out) == 3
+
+
+@responses.activate
+def test_check_changes(client):
+    r = rec("v2_check_windows_changes")
+    responses.add(responses.POST, f"{BASE}/check-windows/changes", json=r["response"], status=r["status"])
+    out = client.windows.check_changes(r["request"]["windows_hosts"])
+    assert [c.changed for c in out.results] == [False, True]
+    assert out.changed == [r["request"]["windows_hosts"][1]["asset_id"]]
+    assert out.results[0].current_hash == r["request"]["windows_hosts"][0]["result_hash"]
+    with pytest.raises(ValueError, match="At most 200 hosts"):
+        client.windows.check_changes([{"asset_id": "asset-1"}] * 201)
+
+
+@responses.activate
+def test_check_trial_key_scope_error(client):
+    responses.add(responses.POST, f"{BASE}/check-windows", status=403, json={
+        "api": {"version": "1.0.0"}, "error": {"code": "TRIAL_SCOPE", "message": "Trial keys can call ..."}})
+    with pytest.raises(exc.APIError) as e:
+        client.windows.check([{"asset_id": "asset-1"}])
+    assert e.value.code == "TRIAL_SCOPE"

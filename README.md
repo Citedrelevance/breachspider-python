@@ -107,7 +107,7 @@ import breachspider
 
 bs = breachspider.Client.demo()
 
-# First 5 KEV CVEs affecting Siemens, highest CVSS first.
+# First 5 known-exploited CVEs affecting Siemens, highest CVSS first.
 for cve in itertools.islice(bs.cves.search(vendor="siemens", kev=True, sort_by="cvss"), 5):
     print(cve.cve_id, cve.cvss_score, cve.severity)
 
@@ -273,11 +273,35 @@ hosts = [{"asset_id": "WIN-EXAMPLE-01", "os_product": "Windows Server 2019 Stand
 resp = bs.windows.correlate(12, hosts, include_cleared=False)
 for r in resp.rejected:                          # refused hosts (e.g. an identifying field); nothing stored
     print(r.asset_id, r.error_codes)
-for batch in bs.windows.correlate_batched(12, many_hosts):   # calls of 100 hosts or fewer
+for batch in bs.windows.correlate_batched(12, many_hosts):   # calls of 25 hosts (the per-call limit)
     ...
 bs.windows.correlate_csv(12, "hosts.csv")        # the same from a CSV file
 bs.windows.results(12, asset_id="WIN-EXAMPLE-01", cve_page_size=50)
 ```
+
+### Check Windows hosts without storing anything
+
+`bs.windows.check()` gives the same per-CVE decisions as `correlate()` (confirmed open, cleared or needs review, with
+the fixed build, KB and Microsoft source), but nothing about the hosts is saved and no environment is needed. Any API
+key works, read-only included. Trial keys, demo tokens and browser sessions are refused.
+
+```python
+hosts = [{"asset_id": "asset-1", "os_product": "Windows Server 2019 Standard", "edition_id": "ServerStandard",
+          "os_build": "10.0.17763.7792", "architecture": "x64", "installation_type": "Server",
+          "collected_at": "2026-09-25T14:02:00Z"}]
+resp = bs.windows.check(hosts, include_cleared=False)    # at most 25 hosts per call
+resp.stored                                              # False: nothing was saved
+host = resp.assets[0]
+host.counts, host.cves[0].status, host.result_hash
+for batch in bs.windows.check_batched(many_hosts):       # calls of 25
+    ...
+# Later: learn cheaply which hosts changed (up to 200 per call, about a tenth of the cost)
+changes = bs.windows.check_changes([{**hosts[0], "result_hash": host.result_hash}])
+changes.changed                                          # asset_ids to check again
+```
+
+Use a neutral `asset_id` such as `asset-7`. Identifying fields (host name, IP or MAC address, user and similar) are
+refused, and an `asset_id` that could be a host name gets an `asset_id_may_identify` warning.
 
 Guide: [docs/windows-v2.md](docs/windows-v2.md). Examples for every endpoint: [examples/](examples/). OpenAPI
 document for these endpoints: [openapi/breachspider-openapi.json](openapi/breachspider-openapi.json).

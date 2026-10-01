@@ -1,0 +1,61 @@
+{
+ "request": {
+  "windows_hosts": [
+   {
+    "asset_id": "WIN-EXAMPLE-001",
+    "os_product": "Windows Server 2019 Standard",
+    "edition_id": "ServerStandard",
+    "os_build": "10.0.17763.6189",
+    "architecture": "x64",
+    "installation_type": "Server",
+    "collected_at": "2026-10-01T10:00:00Z",
+    "installed_kbs": [
+     "KB5041578"
+    ],
+    "kb_source": "wmi",
+    "result_hash": "sha256:cc2690cd9a05b67dd1b0055bdab9b53106b9866894fea4032c6b21e0ffe36324"
+   },
+   {
+    "asset_id": "WIN-EXAMPLE-003",
+    "os_product": "Windows Server 2019 Standard",
+    "edition_id": "ServerStandard",
+    "os_build": "10.0.17763.6189",
+    "architecture": "x64",
+    "installation_type": "Server",
+    "collected_at": "2026-10-01T10:00:00Z",
+    "installed_kbs": [
+     "KB5041578"
+    ],
+    "kb_source": "wmi",
+    "result_hash": "sha256:stale"
+   }
+  ]
+ },
+ "status": 200,
+ "response": {
+  "data": {
+   "results": [
+    {
+     "asset_id": "WIN-EXAMPLE-001",
+     "changed": false,
+     "current_hash": "sha256:cc2690cd9a05b67dd1b0055bdab9b53106b9866894fea4032c6b21e0ffe36324"
+    },
+    {
+     "asset_id": "WIN-EXAMPLE-003",
+     "changed": true,
+     "current_hash": "sha256:cc2690cd9a05b67dd1b0055bdab9b53106b9866894fea4032c6b21e0ffe36324"
+    }
+   ],
+   "rejected": [],
+   "changed": [
+    "WIN-EXAMPLE-003"
+   ]
+  },
+  "meta": {
+   "api_version": "2",
+   "stored": false,
+   "took_ms": 256
+  }
+ },
+ "recorded": "2026-10-01T13:52:06.053209+00:00"
+}

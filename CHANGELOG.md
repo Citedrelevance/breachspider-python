@@ -5,7 +5,20 @@ while the major version is 0, a minor release may include behavior changes, and 
 
 ## 0.3.1 (unreleased)
 
-Documentation only; no code changes.
+### Added
+- **Stateless Windows checks:** `client.windows.check(hosts)` (`POST /api/v2/assets/check-windows`) returns the same
+  per-CVE decisions as `correlate()` but stores nothing and needs no environment. Any API key works, read-only
+  included. `client.windows.check_batched()` sends calls of 25. Each host carries `result_hash`
+  (`WindowsHostResult.result_hash`); `WindowsResponse.stored` is False.
+- `client.windows.check_changes(hosts)` (`POST /api/v2/assets/check-windows/changes`): send host facts with their
+  `result_hash` and learn which hosts changed, up to 200 per call, without storing anything. New models
+  `WindowsChange` and `WindowsChangesResponse`.
+
+### Behavior change
+- **Windows (API v2): at most 25 hosts per call** (was 200), matching the API, which now refuses more with
+  `413 BATCH_TOO_LARGE`. A full host response takes about 1.8 seconds, and 200 hosts ran past the 100 second limit for
+  responses through breachspider.com. `client.windows.correlate()` raises `ValueError` above 25;
+  `client.windows.correlate_batched()` now sends batches of 25 by default (maximum 25).
 
 ### Changed
 - README: API keys no longer say they require the Professional tier. Free trial keys and partner keys are available
