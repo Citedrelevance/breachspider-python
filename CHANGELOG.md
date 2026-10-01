@@ -3,7 +3,7 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
-## 0.3.2 (unreleased)
+## 0.3.2 (2026-10-01)
 
 ### Behavior change
 - **Retries follow the API's retry guidance.** The client retries an error only when the API marks it `retryable`,
