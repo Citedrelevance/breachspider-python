@@ -8,9 +8,14 @@ Design notes
 * Network failures are re-raised as :class:`APIConnectionError` so a
   ``requests`` ``PreparedRequest`` (which holds the Authorization header) can
   never escape.
-* ``429`` responses (origin or the Cloudflare edge limit that trips around 37
-  rapid requests from one IP) are retried with exponential backoff, honoring
-  ``Retry-After``. Paginated iteration also sleeps ``page_delay`` between
+* Errors the API marks ``retryable`` (rate limits, 5xx) are retried up to
+  ``max_retries`` times, waiting the server's ``retry_after_seconds`` (or the
+  ``Retry-After`` header) when given, else exponential backoff. A
+  non-retryable error (a used-up quota, a refused key, bad input) is raised at
+  once, never retried. A gateway timeout (504/524) on a POST is not repeated
+  either, since the API may already have processed it. Responses without guidance (an older server, the
+  Cloudflare edge limit that trips around 37 rapid requests from one IP)
+  fall back to retrying 429 and 5xx. Paginated iteration also sleeps ``page_delay`` between
   pages so a naive loop over thousands of CVEs stays under the edge limit.
 * ``X-RateLimit-*`` headers are parsed after every call and exposed via
   :attr:`quota`, the only way to see usage while metering is observe-only.
@@ -268,12 +273,6 @@ class Client:
             if q is not None:
                 self._quota = q
 
-            if resp.status_code == 429 and attempt < self.max_retries:
-                retry_after = _retry_after_seconds(resp.headers, resp)
-                time.sleep(retry_after if retry_after is not None else self._backoff(attempt))
-                attempt += 1
-                continue
-
             if resp.status_code >= 400:
                 if resp.status_code in accept_statuses:
                     try:
@@ -282,7 +281,16 @@ class Client:
                         body = None
                     if isinstance(body, dict) and isinstance(body.get("data"), dict):
                         return body
-                raise self._to_exception(resp)
+                error = self._to_exception(resp)
+                # A gateway timeout on a POST may come after the API already processed (and metered) the call, so
+                # it is not repeated automatically; the error still says retryable for the caller to decide.
+                timed_out_post = resp.status_code in (504, 524) and method.upper() not in ("GET", "HEAD")
+                if error.retryable and not timed_out_post and attempt < self.max_retries:
+                    wait = error.retry_after_seconds
+                    time.sleep(wait if wait is not None else self._backoff(attempt))
+                    attempt += 1
+                    continue
+                raise error
 
             if resp.status_code == 204 or not resp.content:
                 return {}
@@ -308,16 +316,24 @@ class Client:
             body = resp.json()
         except ValueError:
             body = None
+        guide: Dict[str, Any] = {}
         if isinstance(body, dict):
             err = body.get("error")
             if isinstance(err, dict):
                 code = err.get("code")
                 message = err.get("message") or message
                 detail = err.get("detail")
+                if isinstance(err.get("retryable"), bool):
+                    guide = {"retryable": err["retryable"], "action": err.get("action"),
+                             "retry_after_seconds": err.get("retry_after_seconds"), "reset_at": err.get("reset_at")}
             request_id = (body.get("api") or {}).get("request_id")
         message = self._redact(message)
+        if not guide or (guide["retryable"] and guide["retry_after_seconds"] is None):
+            after = _retry_after_seconds(resp.headers, resp)    # Retry-After header / detail.retry_after
+            if after is not None:
+                guide["retry_after_seconds"] = max(1, int(after))
 
-        kw = dict(status_code=status, code=code, detail=detail, request_id=request_id)
+        kw = dict(status_code=status, code=code, detail=detail, request_id=request_id, **guide)
 
         if status == 400:
             if code == "UNKNOWN_PARAMETER" or (isinstance(detail, dict) and detail.get("accepted_parameters")):
@@ -326,6 +342,10 @@ class Client:
         if status == 401:
             return exc.AuthenticationError(message, **kw)
         if status == 403:
+            if code in ("PARTNER_SCOPE", "TRIAL_SCOPE"):
+                return exc.ScopeError(message, **kw)
+            if code == "TRIAL_ENDED":
+                return exc.TrialEndedError(message, **kw)
             marker = detail.get("error") if isinstance(detail, dict) else None
             if marker == "insufficient_scope" or code == "insufficient_scope":
                 return exc.InsufficientScopeError(message, **kw)
@@ -334,9 +354,13 @@ class Client:
             return exc.ForbiddenError(message, **kw)
         if status == 404:
             return exc.NotFoundError(message, **kw)
+        if status == 413 and code in ("BATCH_TOO_LARGE", "TRIAL_BATCH_LIMIT"):
+            return exc.BatchTooLargeError(message, **kw)
         if status == 422:
             return exc.ValidationError(message, **kw)
         if status == 429:
+            if code in ("PARTNER_LIMIT", "TRIAL_ENDED"):
+                return exc.UsageLimitError(message, retry_after=_retry_after_seconds(resp.headers, resp), **kw)
             return exc.RateLimitError(message, retry_after=_retry_after_seconds(resp.headers, resp), **kw)
         if status >= 500:
             return exc.ServerError(message, **kw)

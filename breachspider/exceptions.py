@@ -8,6 +8,21 @@ These classes surface the server's ``code``, ``message`` and structured
 ``detail`` so the caller never loses the API's own (often very helpful)
 explanation -- e.g. the ``accepted_parameters`` list on a 400.
 
+Every exception also carries the API's retry guidance:
+
+* :attr:`~BreachSpiderError.retryable` -- True only when repeating the exact
+  same request later may succeed. The client's built-in retries follow it and
+  never retry a non-retryable error.
+* :attr:`~BreachSpiderError.retry_after_seconds` -- how long to wait, when the
+  server knows (rate limits), else ``None``.
+* :attr:`~BreachSpiderError.action` -- what to do instead: ``retry_later``,
+  ``wait_until_reset``, ``reduce_batch``, ``fix_input``, ``use_different_key``
+  or ``contact_us``.
+
+When a response carries no guidance (an older server, or an edge page such as
+Cloudflare's 524), it is derived from the status: 429 and 5xx are retryable
+(``retry_later``, honoring ``Retry-After``); everything else is not.
+
 Nothing in this module ever stores or renders the API key.
 """
 
@@ -19,6 +34,13 @@ from typing import Any, Optional
 class BreachSpiderError(Exception):
     """Base class for every error raised by this SDK."""
 
+    #: True only when repeating the exact same request later may succeed.
+    retryable: bool = False
+    #: Seconds to wait before retrying, when the server knows; else None.
+    retry_after_seconds: Optional[int] = None
+    #: What to do instead: retry_later, wait_until_reset, reduce_batch, fix_input, use_different_key, contact_us.
+    action: Optional[str] = None
+
 
 class APIConnectionError(BreachSpiderError):
     """A network-level failure (DNS, TLS, timeout, connection reset).
@@ -27,6 +49,9 @@ class APIConnectionError(BreachSpiderError):
     underlying ``PreparedRequest`` (which carries the Authorization header)
     can never escape and leak the key.
     """
+
+    retryable = True
+    action = "retry_later"
 
 
 class APIError(BreachSpiderError):
@@ -43,6 +68,10 @@ class APIError(BreachSpiderError):
         code: Optional[str] = None,
         detail: Any = None,
         request_id: Optional[str] = None,
+        retryable: Optional[bool] = None,
+        retry_after_seconds: Optional[int] = None,
+        action: Optional[str] = None,
+        reset_at: Optional[str] = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -51,12 +80,23 @@ class APIError(BreachSpiderError):
         self.code = code
         self.detail = detail
         self.request_id = request_id
+        if retryable is None:                       # no guidance in the response: derive it from the status
+            retryable = self.status_code == 429 or self.status_code >= 500
+            action = action or ("retry_later" if retryable else None)
+        self.retryable = bool(retryable)
+        self.retry_after_seconds = retry_after_seconds
+        self.action = action
+        #: When a usage limit resets (ISO 8601), where the API says so.
+        self.reset_at = reset_at
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         bits = [f"[{self.status_code}]"]
         if self.code:
             bits.append(self.code)
         bits.append(self.message)
+        if self.action:
+            bits.append(f"(action={self.action}, retryable={str(self.retryable).lower()}"
+                        + (f", retry_after_seconds={self.retry_after_seconds}" if self.retry_after_seconds else "") + ")")
         if self.request_id:
             bits.append(f"(request_id={self.request_id})")
         return " ".join(bits)
@@ -108,6 +148,30 @@ class InsufficientScopeError(ForbiddenError):
         super().__init__(message, **kw)
 
 
+class ScopeError(ForbiddenError):
+    """403 PARTNER_SCOPE or TRIAL_SCOPE -- this key cannot call this endpoint.
+
+    Retrying will not help; a key with a wider scope is needed. :attr:`code`
+    says which kind of key refused the call.
+    """
+
+
+class TrialEndedError(ForbiddenError):
+    """403 TRIAL_ENDED -- the trial is over (expired after 14 days, or ended early).
+
+    :attr:`reason` is ``"expired"`` or ``"ended"``. The key is genuine but no
+    longer accepted. A trial whose asset checks are used up raises
+    :class:`UsageLimitError` instead.
+    """
+
+    def __init__(self, message: str, **kw: Any) -> None:
+        detail = kw.get("detail") or {}
+        self.reason = detail.get("reason")
+        self.ended_at = detail.get("ended_at")
+        self.contact_url = detail.get("contact_url")
+        super().__init__(message, **kw)
+
+
 class CapExceededError(ForbiddenError):
     """403 cap_exceeded -- a plan/tier resource cap was hit."""
 
@@ -155,6 +219,44 @@ class RateLimitError(APIError):
 
     def __init__(self, message: str, *, retry_after: Optional[float] = None, **kw: Any) -> None:
         self.retry_after = retry_after
+        if kw.get("retry_after_seconds") is None and retry_after is not None:
+            kw["retry_after_seconds"] = int(retry_after)
+        super().__init__(message, **kw)
+
+
+class UsageLimitError(RateLimitError):
+    """429 PARTNER_LIMIT or TRIAL_ENDED (reason ``limit``) -- the key's asset checks are used up.
+
+    Nothing in the request was processed. Not retried automatically
+    (:attr:`retryable` is False): waiting seconds will not help.
+    :attr:`used`, :attr:`limit`, :attr:`remaining` and :attr:`requested` are
+    in asset checks; :attr:`resets_at` is set for partner keys (start of next
+    month, UTC).
+    """
+
+    def __init__(self, message: str, **kw: Any) -> None:
+        detail = kw.get("detail") or {}
+        self.used = detail.get("used")
+        self.limit = detail.get("limit")
+        self.remaining = detail.get("remaining")
+        self.requested = detail.get("requested")
+        self.resets_at = detail.get("resets_at")
+        super().__init__(message, **kw)
+
+
+class BatchTooLargeError(APIError):
+    """413 BATCH_TOO_LARGE or TRIAL_BATCH_LIMIT -- too many hosts or assets in one call.
+
+    :attr:`max` is the per-call maximum and :attr:`received` what was sent.
+    Split the request into batches of at most :attr:`max`.
+    """
+
+    status_code = 413
+
+    def __init__(self, message: str, **kw: Any) -> None:
+        detail = kw.get("detail") or {}
+        self.max = detail.get("max")
+        self.received = detail.get("received")
         super().__init__(message, **kw)
 
 

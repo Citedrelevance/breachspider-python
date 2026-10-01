@@ -57,7 +57,10 @@
       "type": "object",
       "required": [
        "code",
-       "message"
+       "message",
+       "retryable",
+       "retry_after_seconds",
+       "action"
       ],
       "properties": {
        "code": {
@@ -66,6 +69,42 @@
        },
        "message": {
         "type": "string"
+       },
+       "retryable": {
+        "type": "boolean",
+        "description": "True only when repeating the exact same request later may succeed. Never retry when false."
+       },
+       "retry_after_seconds": {
+        "anyOf": [
+         {
+          "type": "integer",
+          "minimum": 1
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "Seconds to wait before retrying, when the server knows (rate limits, server errors); also sent as the Retry-After header. null otherwise."
+       },
+       "action": {
+        "type": "string",
+        "enum": [
+         "retry_later",
+         "wait_until_reset",
+         "reduce_batch",
+         "fix_input",
+         "use_different_key",
+         "contact_us"
+        ],
+        "description": "What to do instead: retry_later, wait_until_reset (a usage limit; see reset_at), reduce_batch (see max), fix_input, use_different_key, contact_us."
+       },
+       "reset_at": {
+        "type": "string",
+        "description": "When a usage limit resets, ISO 8601 date or date-time (UTC). Present only where it exists (PARTNER_LIMIT, SAGE query limits); copied from detail."
+       },
+       "max": {
+        "type": "integer",
+        "description": "The per-call maximum. Present only on batch limit errors (BATCH_TOO_LARGE, TRIAL_BATCH_LIMIT, v1 batch_too_large, DEMO_EXAMPLES_ONLY); copied from detail."
        },
        "detail": {
         "description": "Specific error: for v2 an object with error, message and extra fields such as retry_after; for validation errors a list of {field, message, type}."
@@ -1292,6 +1331,27 @@
         }
        }
       }
+     },
+     "retryable": {
+      "type": "boolean",
+      "description": "True only when repeating the exact same request later may succeed. Never retry when false.",
+      "const": false
+     },
+     "retry_after_seconds": {
+      "type": "null"
+     },
+     "action": {
+      "type": "string",
+      "enum": [
+       "retry_later",
+       "wait_until_reset",
+       "reduce_batch",
+       "fix_input",
+       "use_different_key",
+       "contact_us"
+      ],
+      "description": "What to do instead: retry_later, wait_until_reset (a usage limit; see reset_at), reduce_batch (see max), fix_input, use_different_key, contact_us.",
+      "const": "fix_input"
      }
     }
    },

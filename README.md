@@ -7,7 +7,8 @@ HTTP client.
 
 - Typed objects for CVEs, vendors, products, environments, and assets, not raw dicts.
 - Transparent pagination that absorbs the API's per-endpoint shapes.
-- Automatic 429 backoff so a naive loop over thousands of CVEs won't trip the edge limit.
+- Automatic retries that follow the API's retry guidance: rate limits and server errors are retried after the
+  wait the API asks for; errors marked not retryable are raised at once.
 - Typed exceptions that surface the API's own helpful error messages.
 - The API key is never printed, logged, or included in an exception.
 - **New in 0.3.0:** cited source references on every CVE: vendor advisories, government ICS advisories and the
@@ -160,7 +161,8 @@ for cve in first_ten:
 
 The API sits behind a Cloudflare edge limit that trips at roughly 37 rapid
 requests from one IP. The client sleeps `page_delay` seconds (default `0.25`)
-between pages and retries any `429` with exponential backoff. Tune it:
+between pages and retries rate limits and server errors the API marks retryable, waiting the time the API asks
+for (else exponential backoff). Tune it:
 
 ```python
 import breachspider
@@ -234,13 +236,76 @@ except NotFoundError as e:
 | `UnknownParameterError` | 400 | `accepted_parameters`, `unknown_parameters` |
 | `AuthenticationError` | 401 | |
 | `InsufficientScopeError` | 403 | `required_scope`, `current_scopes` |
+| `ScopeError` | 403 | `code` is `PARTNER_SCOPE` or `TRIAL_SCOPE` |
+| `TrialEndedError` | 403 | `reason` (`expired` or `ended`), `ended_at`, `contact_url` |
 | `CapExceededError` | 403 | `resource`, `limit`, `current`, `tier` |
 | `NotFoundError` | 404 | `detail` |
+| `BatchTooLargeError` | 413 | `max`, `received`; `code` is `BATCH_TOO_LARGE` or `TRIAL_BATCH_LIMIT` |
 | `ValidationError` | 422 | `fields` |
-| `RateLimitError` | 429 | `retry_after` (auto-retried first) |
+| `RateLimitError` | 429 | `retry_after` (auto-retried first when `retryable`) |
+| `UsageLimitError` | 429 | `used`, `limit`, `remaining`, `requested`, `resets_at`; `code` is `PARTNER_LIMIT` or `TRIAL_ENDED` |
+
+`ScopeError` and `TrialEndedError` are subclasses of `ForbiddenError`, and `UsageLimitError` of `RateLimitError`,
+so existing `except ForbiddenError` and `except RateLimitError` blocks still catch them. Catch the specific class
+first:
+
+```python
+from breachspider import (BatchTooLargeError, ForbiddenError, ScopeError, TrialEndedError,
+                          UsageLimitError)
+
+try:
+    result = bs.windows.check(hosts)
+except ScopeError as e:          # this key cannot call this endpoint (PARTNER_SCOPE / TRIAL_SCOPE)
+    print("needs a different key:", e.message)
+except TrialEndedError as e:     # trial expired or ended
+    print("trial over:", e.reason, e.contact_url)
+except UsageLimitError as e:     # monthly or trial asset checks used up; nothing was processed
+    print(f"{e.remaining} of {e.limit} checks left, resets {e.resets_at}")
+except BatchTooLargeError as e:  # split into batches of e.max
+    print("at most", e.max, "per call")
+except ForbiddenError as e:      # any other 403
+    print(e)
+```
 
 All inherit from `breachspider.BreachSpiderError`. Network failures raise
 `APIConnectionError` (never leaking the request or key).
+
+### Retry guidance
+
+Every exception carries the API's retry guidance:
+
+| Attribute | Meaning |
+|---|---|
+| `retryable` | `True` only when repeating the exact same request later may succeed |
+| `retry_after_seconds` | Seconds to wait, when the server knows (rate limits); else `None` |
+| `action` | What to do: `retry_later`, `wait_until_reset`, `reduce_batch`, `fix_input`, `use_different_key`, `contact_us` |
+| `reset_at` | When a usage limit resets (ISO 8601), where the API says so |
+
+The client already retries errors that are `retryable` (up to `max_retries`, waiting `retry_after_seconds` or the
+`Retry-After` header), and never retries one that is not. A gateway timeout (504) on a POST is not repeated
+automatically either: the API may already have processed it. A used-up quota, a refused key or bad input is raised at
+once. So by the time you catch an error, decide on `action`:
+
+```python
+from breachspider import APIError
+
+try:
+    result = bs.windows.check(hosts)
+except APIError as e:
+    if e.action == "reduce_batch":
+        ...                                   # split into calls of e.detail["max"] hosts
+    elif e.action == "wait_until_reset":
+        print("monthly limit used up; resets", e.reset_at)
+    elif e.action in ("use_different_key", "contact_us"):
+        print("this key cannot do this:", e.message)
+    elif e.retryable:
+        print(f"still failing after retries; try again in {e.retry_after_seconds or 60}s")
+    else:                                     # fix_input
+        print("fix the request:", e.message, e.detail)
+```
+
+Responses without guidance (Cloudflare's own 429 and 524 pages) fall back to the status: 429 and 5xx are
+retryable, everything else is not.
 
 ## Correlate assets (API v1)
 

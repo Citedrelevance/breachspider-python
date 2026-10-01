@@ -101,7 +101,8 @@ not change with sort, filters or page. Store it; send it to `/check` later; re-c
 ## Limits and errors
 
 Per API key: 60 requests and 5,000 assets per minute by default (shared with API v2). Over the limit: `429`
-`RATE_LIMITED` with `error.detail.retry_after`; the SDK waits and retries automatically.
+`RATE_LIMITED` with `error.retry_after_seconds` (also `error.detail.retry_after` and the `Retry-After` header); the
+SDK waits and retries automatically.
 
 | HTTP | Code | When |
 |---|---|---|

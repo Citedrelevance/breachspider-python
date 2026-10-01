@@ -3,6 +3,30 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.3.2 (unreleased)
+
+### Behavior change
+- **Retries follow the API's retry guidance.** The client retries an error only when the API marks it `retryable`,
+  waiting the server's `retry_after_seconds` (or `Retry-After`) when given, else exponential backoff. Non-retryable
+  errors are raised at once: a used-up partner or trial quota (`429 PARTNER_LIMIT` / `TRIAL_ENDED`), which 0.3.1
+  retried pointlessly, is no longer retried. Server errors (5xx) the API marks retryable are now retried too
+  (0.3.1 retried only 429), except a gateway timeout (504/524) on a POST, which may already have been processed and
+  metered and is raised for the caller to decide. Responses without guidance (Cloudflare's own 429 and 524 pages) fall back to the
+  status: 429 and 5xx are retried, everything else is not.
+
+### Added
+- Every exception exposes `retryable`, `retry_after_seconds` and `action` (`retry_later`, `wait_until_reset`,
+  `reduce_batch`, `fix_input`, `use_different_key`, `contact_us`), and `APIError` also `reset_at`. README: "Retry
+  guidance".
+- Exception classes for the partner and trial error codes, so they can be caught by type:
+  - `ScopeError` (403 `PARTNER_SCOPE`, `TRIAL_SCOPE`): the key cannot call this endpoint. Subclass of
+    `ForbiddenError`.
+  - `TrialEndedError` (403 `TRIAL_ENDED`): `reason`, `ended_at`, `contact_url`. Subclass of `ForbiddenError`.
+  - `UsageLimitError` (429 `PARTNER_LIMIT`, and `TRIAL_ENDED` with reason `limit`): `used`, `limit`, `remaining`,
+    `requested`, `resets_at`. Subclass of `RateLimitError`.
+  - `BatchTooLargeError` (413 `BATCH_TOO_LARGE`, `TRIAL_BATCH_LIMIT`): `max`, `received`. Was a plain `APIError`.
+  Existing `except ForbiddenError` / `except RateLimitError` / `except APIError` code keeps working.
+
 ## 0.3.1 (2026-10-01)
 
 ### Added
