@@ -300,8 +300,8 @@ changes = bs.windows.check_changes([{**hosts[0], "result_hash": host.result_hash
 changes.changed                                          # asset_ids to check again
 ```
 
-Use a neutral `asset_id` such as `asset-7`. Identifying fields (host name, IP or MAC address, user and similar) are
-refused, and an `asset_id` that could be a host name gets an `asset_id_may_identify` warning.
+Identifying fields (host name, IP or MAC address, user and similar) are refused, and so is an `asset_id` shaped like
+an IP, MAC or email address or a domain name. Your own asset tags, such as `PLC-LINE-2`, are fine.
 
 Guide: [docs/windows-v2.md](docs/windows-v2.md). Examples for every endpoint: [examples/](examples/). OpenAPI
 document for these endpoints: [openapi/breachspider-openapi.json](openapi/breachspider-openapi.json).

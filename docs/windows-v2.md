@@ -202,9 +202,8 @@ again = [h for h in hosts if h["asset_id"] in changes.changed]
 ```
 
 **Privacy.** The same validation as stored mode: identifying fields are refused, an `asset_id` shaped like an IP
-address, MAC address or domain is refused (and not echoed back), and a refused host appears only in `rejected` with
-its errors. An `asset_id` that is not clearly neutral (for example `plant-a-sw01`) is accepted with the warning
-`asset_id_may_identify`; use a neutral id such as `asset-7`.
+address, MAC address, email address or domain name is refused (and not echoed back), and a refused host appears only
+in `rejected` with its errors. Your own asset tags, such as `PLC-LINE-2`, are accepted.
 
 | HTTP | Code | When |
 |---|---|---|
