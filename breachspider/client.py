@@ -354,7 +354,8 @@ class Client:
             return exc.ForbiddenError(message, **kw)
         if status == 404:
             return exc.NotFoundError(message, **kw)
-        if status == 413 and code in ("BATCH_TOO_LARGE", "TRIAL_BATCH_LIMIT"):
+        if status == 413 and (code in ("BATCH_TOO_LARGE", "TRIAL_BATCH_LIMIT")
+                              or (isinstance(detail, dict) and detail.get("error") in ("batch_too_large", "trial_batch_limit"))):
             return exc.BatchTooLargeError(message, **kw)
         if status == 422:
             return exc.ValidationError(message, **kw)

@@ -240,7 +240,7 @@ except NotFoundError as e:
 | `TrialEndedError` | 403 | `reason` (`expired` or `ended`), `ended_at`, `contact_url` |
 | `CapExceededError` | 403 | `resource`, `limit`, `current`, `tier` |
 | `NotFoundError` | 404 | `detail` |
-| `BatchTooLargeError` | 413 | `max`, `received`; `code` is `BATCH_TOO_LARGE` or `TRIAL_BATCH_LIMIT` |
+| `BatchTooLargeError` | 413 | `max`, `received`; `code` is `BATCH_TOO_LARGE` or `TRIAL_BATCH_LIMIT` (or `detail.error` is `batch_too_large`) |
 | `ValidationError` | 422 | `fields` |
 | `RateLimitError` | 429 | `retry_after` (auto-retried first when `retryable`) |
 | `UsageLimitError` | 429 | `used`, `limit`, `remaining`, `requested`, `resets_at`; `code` is `PARTNER_LIMIT` or `TRIAL_ENDED` |

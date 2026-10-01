@@ -247,6 +247,9 @@ class UsageLimitError(RateLimitError):
 class BatchTooLargeError(APIError):
     """413 BATCH_TOO_LARGE or TRIAL_BATCH_LIMIT -- too many hosts or assets in one call.
 
+    Also raised for the older shape that carries ``detail.error`` =
+    ``batch_too_large`` under a generic code.
+
     :attr:`max` is the per-call maximum and :attr:`received` what was sent.
     Split the request into batches of at most :attr:`max`.
     """

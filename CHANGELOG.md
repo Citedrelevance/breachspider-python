@@ -3,7 +3,16 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
-## 0.3.2 (2026-10-01)
+## 0.3.3 (2026-10-01)
+
+Includes everything below from 0.3.2, which was a TestPyPI-only build and was not released to PyPI.
+
+### Fixed
+- `BatchTooLargeError` is also raised when only `error.detail.error` says `batch_too_large` (the shape API v1
+  correlate-cves used before it gained the `BATCH_TOO_LARGE` code), not just on the `BATCH_TOO_LARGE` and
+  `TRIAL_BATCH_LIMIT` codes.
+
+## 0.3.2 (TestPyPI only)
 
 ### Behavior change
 - **Retries follow the API's retry guidance.** The client retries an error only when the API marks it `retryable`,

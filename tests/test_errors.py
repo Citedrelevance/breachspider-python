@@ -251,3 +251,14 @@ def test_gateway_timeout_on_post_is_not_repeated(client, slept):
         client.request("POST", "/assets/correlate-cves", json={"assets": []})
     assert len(responses.calls) == 1 and slept == []
     assert ei.value.retryable is True and ei.value.retry_after_seconds == 30     # the caller may still decide
+
+
+@responses.activate
+@pytest.mark.parametrize("code", ["BATCH_TOO_LARGE", "ERROR"])     # current shape, and the older v1 shape
+def test_413_batch_too_large_both_shapes(client, code):
+    url = "https://breachspider.com/api/v1/assets/correlate-cves"
+    responses.add(responses.POST, url, status=413, json=error_body(
+        code, "At most 200 assets per call.", {"error": "batch_too_large", "max": 200, "received": 201}))
+    with pytest.raises(exc.BatchTooLargeError) as ei:
+        client.request("POST", "/assets/correlate-cves", json={"assets": []})
+    assert ei.value.max == 200 and ei.value.received == 201 and ei.value.code == code
