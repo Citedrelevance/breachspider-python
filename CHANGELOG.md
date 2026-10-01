@@ -3,7 +3,7 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
-## 0.3.1 (unreleased)
+## 0.3.1 (2026-10-01)
 
 ### Added
 - **Stateless Windows checks:** `client.windows.check(hosts)` (`POST /api/v2/assets/check-windows`) returns the same
