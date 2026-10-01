@@ -10,7 +10,7 @@ HTTP client.
 - Automatic 429 backoff so a naive loop over thousands of CVEs won't trip the edge limit.
 - Typed exceptions that surface the API's own helpful error messages.
 - The API key is never printed, logged, or included in an exception.
-- **New in 0.3.0:** cited source references on every CVE: vendor advisories, CISA ICS advisories and the
+- **New in 0.3.0:** cited source references on every CVE: vendor advisories, government ICS advisories and the
   CVE.org record. See the [changelog](CHANGELOG.md).
 - **New in 0.2.0:** asset correlation (API v1) and Windows patch level (API v2), with the
   exposure-priority ranking, fix groups and fix plans. See the [changelog](CHANGELOG.md): the API's default
@@ -50,8 +50,9 @@ for cve in bs.cves.by_vendor(vendor.slug, severity="CRITICAL", kev=True):
 
 ## Authentication
 
-Use a real API key (`bs_live_…`) for production. Keys require the Professional
-tier or above and are created in the dashboard under **Integrations → API Keys**.
+Use a real API key (`bs_live_…`) for production. Start a free trial key at
+[breachspider.com/developers](https://breachspider.com/developers), or ask about partner keys through "Talk to us" on
+the same page. Organizations with dashboard access can also create keys under **Integrations → API Keys**.
 
 ```python
 import os
@@ -96,6 +97,9 @@ pages. Accepted filters:
 
 > There is **no** `product`, `version`, or `cpe` filter on `/cves` today. To
 > narrow to a product, filter by vendor and match on the result fields.
+
+> `cves.search` works with a demo token (as below) or a partner or customer key. A **trial key** cannot call it
+> (`TRIAL_SCOPE`); trial keys can correlate devices and look up single CVEs with `bs.cves.get`.
 
 ```python
 import itertools
@@ -185,10 +189,12 @@ from breachspider import AuthenticationError
 bs = breachspider.Client(os.environ.get("BREACHSPIDER_API_KEY", "bs_live_YOUR_KEY_HERE"))
 
 try:
-    next(iter(bs.cves.search(vendor="siemens", per_page=1)), None)
+    # Correlate works with every key type, including trial keys.
+    device = {"asset_id": "asset-1", "vendor": "Moxa", "product": "EDS-518A", "version": "V3.5"}
+    bs.correlate.correlate([device])
     q = bs.quota
     print("limit:", q.limit, "used:", q.used, "remaining:", q.remaining)
-    # On Professional: limit 25000 ... ; on Enterprise/api: limit 'unlimited'
+    # limit is your key's allowance, or 'unlimited'
 except AuthenticationError:
     print("Set BREACHSPIDER_API_KEY to a live bs_live_… key to see quota.")
 ```

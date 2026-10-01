@@ -3,6 +3,20 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.3.1 (unreleased)
+
+Documentation only; no code changes.
+
+### Changed
+- README: API keys no longer say they require the Professional tier. Free trial keys and partner keys are available
+  at breachspider.com/developers.
+- README: the quota example uses `correlate` (works with every key type) instead of `cves.search`; the CVE search
+  section notes that search needs a partner or customer key, not a trial key.
+- docs/correlate.md: the example shows the live result (security patch 3.11.2, source `manual_curation`) and reads
+  the key from `BREACHSPIDER_API_KEY`.
+- Government ICS advisories are described as such in prose. API field names such as `cisa_ics_advisories` are
+  unchanged.
+
 ## 0.3.0 (2026-09-30)
 
 ### Added
@@ -17,10 +31,10 @@ while the major version is 0, a minor release may include behavior changes, and 
   capped at 25 per CVE, with `references.other_references_total` giving the full count (full list on `nvd_url`).
 - `vendor_advisories` also covers 58 vendors' advisory domains that differ from the vendor name (for example android.com for
   Google), each approved on NVD evidence; on those domains only NVD `Vendor Advisory`-tagged links count.
-- `vendor_advisories` also includes the vendor advisory that CISA's CSAF document states for the CVE (a `self`
-  reference), when it is on the matched vendor's own domain (`source: "cisa_csaf_vendor_reference"`, with CISA's title).
-- **CISA ICS advisories.** Each CVE's `references.cisa_ics_advisories` lists the CISA ICS advisories that name it
-  (`{advisory_id, url, title, published}`), from CISA's own CSAF documents; the URL is the page each document states.
+- `vendor_advisories` also includes the vendor advisory that the government ICS advisory's CSAF document states for the CVE (a `self`
+  reference), when it is on the matched vendor's own domain (`source: "cisa_csaf_vendor_reference"`, with the advisory's title).
+- **Government ICS advisories.** Each CVE's `references.cisa_ics_advisories` lists the government ICS advisories that name it
+  (`{advisory_id, url, title, published}`), from the advisories' own CSAF documents; the URL is the page each document states.
 - **The same references on every CVE-returning endpoint:** `GET /api/v1/cves/{id}` (vendor context = the CVE's catalog
   vendors) and the v2 Windows results (each CVE gains a `references` object). New SDK model `CisaIcsAdvisory`;
   `CorrelatedCVE.cisa_ics_advisories`; `WindowsCVE.references`.

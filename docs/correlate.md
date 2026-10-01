@@ -12,15 +12,20 @@ Full reference: <https://breachspider.com/docs/api/correlate/>. OpenAPI: [`opena
 ## Python
 
 ```python
+import os
 import breachspider
-bs = breachspider.Client("bs_live_...")
-device = {"asset_id": "EXAMPLE-SWITCH-01", "vendor": "Moxa", "product": "EDS-518A", "version": "V3.5"}
+
+bs = breachspider.Client(os.environ["BREACHSPIDER_API_KEY"])
+device = {"asset_id": "asset-1", "vendor": "Moxa", "product": "EDS-518A", "version": "V3.5"}
 
 resp = bs.correlate.correlate([device])
 result = resp.results[0]
-result.cves[0].priority_reason     # 'confirmed (affected 1.0 to 3.11), fix: upgrade beyond 3.11 (derived)'
-result.fix_groups[0].fix           # 'upgrade beyond 3.11'
-result.fix_plan.to_clear_all_fixable.note   # derived plans always carry the "confirm in the vendor advisory" note
+result.cves[0].cve_id              # 'CVE-2024-9137'
+result.cves[0].priority_reason     # 'confirmed (affected 1.0 to 3.11), fix: upgrade to security patch 3.11.2 (from Moxa Technical Support)'
+result.cves[0].fix.source          # 'manual_curation'
+result.fix_groups[0].fix           # 'upgrade to security patch 3.11.2 (from Moxa Technical Support)'
+result.fix_groups[0].cve_ids       # ['CVE-2024-9137', 'CVE-2024-7695', 'CVE-2024-9404']
+result.fix_plan.to_clear_all_fixable.clears   # {'cves': 3, 'known_exploited': 0, 'groups': 1}
 resp.fix_summary                   # top fix actions across all assets in the call
 
 all_cves = bs.correlate.all_cves(device)                 # every page
