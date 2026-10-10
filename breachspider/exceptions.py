@@ -225,13 +225,14 @@ class RateLimitError(APIError):
 
 
 class UsageLimitError(RateLimitError):
-    """429 PARTNER_LIMIT or TRIAL_ENDED (reason ``limit``) -- the key's asset checks are used up.
+    """429 PARTNER_LIMIT, QUOTA_EXCEEDED (monthly per-key allowance) or TRIAL_ENDED (reason ``limit``) -- the
+    key's asset checks are used up.
 
     Nothing in the request was processed. Not retried automatically
     (:attr:`retryable` is False): waiting seconds will not help.
     :attr:`used`, :attr:`limit`, :attr:`remaining` and :attr:`requested` are
-    in asset checks; :attr:`resets_at` is set for partner keys (start of next
-    month, UTC).
+    in asset checks; :attr:`resets_at` is set for partner keys and the monthly
+    per-key allowance (start of next month, UTC).
     """
 
     def __init__(self, message: str, **kw: Any) -> None:

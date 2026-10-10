@@ -148,7 +148,8 @@ def test_403_trial_ended(client):
 
 
 @responses.activate
-@pytest.mark.parametrize("code,action", [("PARTNER_LIMIT", "wait_until_reset"), ("TRIAL_ENDED", "contact_us")])
+@pytest.mark.parametrize("code,action", [("PARTNER_LIMIT", "wait_until_reset"), ("QUOTA_EXCEEDED", "wait_until_reset"),
+                                         ("TRIAL_ENDED", "contact_us")])
 def test_429_usage_limit_is_not_retried(client, code, action):
     body = error_body(code, "This request needs 25 asset checks.",
                       {"code": code, "reason": "limit", "used": 740, "limit": 750, "remaining": 10, "requested": 25,

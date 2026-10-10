@@ -7,7 +7,7 @@ returns the CVEs that affect it, **ranked by what's exposed and what to fix firs
 Full reference: <https://breachspider.com/docs/api/correlate/>. OpenAPI: [`openapi/breachspider-openapi.json`](../openapi/breachspider-openapi.json).
 
 > **Behavior change (2026-09-26):** `cves[]` is now in **priority** order by default. Pass `sort="score"` for the
-> previous order (BCS, then CVSS).
+> previous order (CVSS, then EPSS; BCS was retired from ranking on 2026-10-05).
 
 ## Python
 
@@ -54,7 +54,7 @@ priorities and `cves_page.total` is the filtered count (`total_unfiltered` is th
 
 | Mode | Order |
 |---|---|
-| `priority` | 1. confirmed for this version (`EXACT`, `RANGE`) before `PRODUCT_WIDE`; 2. known-exploited; 3. public exploit or proof-of-concept; 4. fix available (installable before ESU-required) before no fix known; 5. BCS, CVSS, EPSS (highest first) |
+| `priority` | 1. confirmed for this version (`EXACT`, `RANGE`) before `PRODUCT_WIDE`; 2. known-exploited; 3. public exploit or proof-of-concept; 4. fix available (installable before ESU-required) before no fix known; 5. CVSS, EPSS (highest first) |
 | `score` | The previous order: BCS, then CVSS |
 | `exploit` | Known-exploited, exploit/PoC, EPSS, CVSS |
 | `newest` | Published date, newest first |
@@ -88,7 +88,7 @@ vendor's advisory: it may not exist in the product line.**
 
 `resolution.status`: `resolved`, `ambiguous` (see `candidates`, no CVEs), `unresolved`. `confidence_band`: `HIGH` ≥ 80,
 `MEDIUM` 60 to 79, `LOW` < 60. `coverage`: `covered`, `partial`, `no_cpe_data` (empty list is undetermined, not clean).
-Warnings include `NO_VERSION_SUPPLIED`, `VERSION_FROM_FIRMWARE`, `PRODUCT_WIDE_MATCH`, `NO_CPE_DATA`, `NEEDS_REVIEW`,
+Warnings include `NO_VERSION_SUPPLIED`, `VERSION_FROM_FIRMWARE`, `PRODUCT_WIDE_MATCH`, `NO_CPE_DATA`, `NO_MATCHING_RANGE`, `NEEDS_REVIEW`,
 `FIRMWARE_UNPARSEABLE`, `VERSION_SUFFIX_APPROXIMATE`, `VERSION_SUFFIX_IGNORED`, `AMBIGUOUS_RESOLUTION`; handle unknown
 codes gracefully.
 

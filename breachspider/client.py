@@ -360,7 +360,7 @@ class Client:
         if status == 422:
             return exc.ValidationError(message, **kw)
         if status == 429:
-            if code in ("PARTNER_LIMIT", "TRIAL_ENDED"):
+            if code in ("PARTNER_LIMIT", "TRIAL_ENDED", "QUOTA_EXCEEDED"):
                 return exc.UsageLimitError(message, retry_after=_retry_after_seconds(resp.headers, resp), **kw)
             return exc.RateLimitError(message, retry_after=_retry_after_seconds(resp.headers, resp), **kw)
         if status >= 500:

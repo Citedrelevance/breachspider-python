@@ -3,6 +3,16 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.3.4 (2026-10-10, not yet published)
+
+### Added
+- `UsageLimitError` also for HTTP 429 `QUOTA_EXCEEDED`, the monthly per-key device-check allowance (announced before it
+  is enforced). `used`, `limit`, `remaining`, `requested` and `resets_at` are set; not retried automatically
+  (`action` `wait_until_reset`).
+
+### Docs
+- Correlate docs: the `score` sort is CVSS, then EPSS (BCS left the ranking on 2026-10-05).
+
 ## 0.3.3 (2026-10-01)
 
 Includes everything below from 0.3.2, which was a TestPyPI-only build and was not released to PyPI.
