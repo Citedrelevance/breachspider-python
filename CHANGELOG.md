@@ -3,7 +3,7 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
-## 0.3.4 (2026-10-10, not yet published)
+## 0.3.4 (2026-10-11)
 
 ### Added
 - `UsageLimitError` also for HTTP 429 `QUOTA_EXCEEDED`, the monthly per-key device-check allowance (announced before it
