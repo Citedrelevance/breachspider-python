@@ -59,8 +59,12 @@ from .exceptions import (
     ServerError,
 )
 
+from .warnings import WARNING_CODES, describe_warning
+
 __all__ = [
     "__version__",
+    "WARNING_CODES",
+    "describe_warning",
     "Client",
     "Quota",
     # models

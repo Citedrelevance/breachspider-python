@@ -3,6 +3,13 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.3.5 (2026-10-25)
+
+### Added
+- `WARNING_CODES` and `describe_warning(code)`: the warning codes correlate-cves returns, with a one-line meaning
+  (as documented in the API field reference). Unknown codes stay on results unchanged and `describe_warning` returns
+  `None` for them.
+
 ## 0.3.4 (2026-10-11)
 
 ### Added
