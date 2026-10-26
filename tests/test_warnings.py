@@ -14,3 +14,7 @@ def test_unknown_code_is_kept_and_not_an_error():
                                                 {"code": "PRODUCT_WIDE_MATCH", "message": "y"}]})
     assert r.warning_codes == ["SOME_FUTURE_CODE", "PRODUCT_WIDE_MATCH"]
     assert describe_warning("SOME_FUTURE_CODE") is None
+
+
+def test_version_not_used_for_resolution_known():
+    assert "R3.02.10" in describe_warning("VERSION_NOT_USED_FOR_RESOLUTION")

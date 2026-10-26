@@ -3,6 +3,13 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.3.6 (2026-10-26)
+
+### Added
+- `VERSION_NOT_USED_FOR_RESOLUTION` in `WARNING_CODES`: a version was sent but has no numeric form the resolver can use
+  (for example `R3.02.10`). It replaces the earlier `NO_VERSION_SUPPLIED` in that case; the version is still used for
+  CVE matching. Additive: results and `result_hash` are unchanged.
+
 ## 0.3.5 (2026-10-25)
 
 ### Added
