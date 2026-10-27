@@ -98,6 +98,25 @@ codes gracefully.
 not change with sort, filters or page. Store it; send it to `/check` later; re-correlate only assets with
 `changed: true`.
 
+### `status_hash` (API 2026-10-27)
+
+Each result also carries `status_facts` (`v`, `known_exploited`, `lifecycle`, `firmware_currency`) and `status_hash`,
+the sha256 of those facts. A status can change while the findings stay the same: a CVE becomes known-exploited, a
+vendor publishes an end-of-support date, a new firmware release ships. Store both and send them to `/check`:
+
+```python
+stored = bs.correlate.correlate([device], min_confidence="HIGH").results[0]
+for item in bs.correlate.check([{**device, "result_hash": stored.result_hash, "status_hash": stored.status_hash,
+                                 "status_facts": stored.status_facts}], min_confidence="HIGH"):
+    item.findings_changed, item.status_changed          # each True or False
+    item.reasons                                        # e.g. [{'code': 'NEWLY_KNOWN_EXPLOITED', 'text': ..., 'cve_ids': [...]}]
+```
+
+Pass `check()` the same `min_confidence` the earlier `correlate()` call used, so the hashes are recomputed under the
+same gate. `status_facts` is optional: without it (or when it does not hash to the sent `status_hash`) a change is
+reported as one `STATUS_CHANGED` reason. Without `status_hash`, `/check` returns the earlier four fields and the new
+attributes are `None`. `changed` still means the findings changed.
+
 ## Limits and errors
 
 Per API key: 60 requests and 5,000 assets per minute by default (shared with API v2). Over the limit: `429`

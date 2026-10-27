@@ -129,3 +129,34 @@ def test_firmware_version_is_passed_through(client):
         client.correlate.correlate([{"asset_id": "EXAMPLE-SWITCH-01", "vendor": "Moxa", "product": "EDS-518A",
                                      "firmware_version": "V3.5"}])
         assert json.loads(rsps.calls[0].request.body)["assets"][0]["firmware_version"] == "V3.5"
+
+
+@responses.activate
+def test_check_status_hash_and_reasons(client):
+    r = rec("v1_check_status")
+    responses.add(responses.POST, URL + "/check", json=r["response"], status=200)
+    out = client.correlate.check(r["request"]["assets"], min_confidence="MEDIUM")
+    sent = json.loads(responses.calls[0].request.body)
+    assert sent["options"] == {"min_confidence": "MEDIUM"} and sent["assets"][1]["status_facts"]["v"] == 1
+    same, moved = out
+    assert (same.changed, same.findings_changed, same.status_changed, same.reasons) == (False, False, False, [])
+    assert moved.status_changed and not moved.findings_changed and not moved.changed
+    assert moved.reasons[0]["code"] == "NO_LONGER_KNOWN_EXPLOITED" and moved.reasons[0]["cve_ids"] == ["CVE-2024-9137"]
+    assert moved.current_status_hash == same.current_status_hash and moved.current_status_facts["v"] == 1
+
+
+@responses.activate
+def test_check_without_status_hash_keeps_the_earlier_shape(client):
+    r = rec("v1_check")
+    responses.add(responses.POST, URL + "/check", json=r["response"], status=200)
+    out = client.correlate.check(r["request"]["assets"])
+    assert "options" not in json.loads(responses.calls[0].request.body)
+    assert all(x.status_changed is None and x.current_status_hash is None and x.reasons == [] for x in out)
+
+
+def test_correlate_result_carries_status_hash():
+    from breachspider.models import CorrelateResult
+    facts = {"v": 1, "known_exploited": [], "lifecycle": None, "firmware_currency": None}
+    res = CorrelateResult.from_dict({"asset_id": "a", "result_hash": "sha256:" + "a" * 64,
+                                     "status_hash": "sha256:" + "b" * 64, "status_facts": facts})
+    assert res.status_hash == "sha256:" + "b" * 64 and res.status_facts == facts

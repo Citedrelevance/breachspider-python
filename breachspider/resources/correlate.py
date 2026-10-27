@@ -67,13 +67,21 @@ class Correlate(_Resource):
             body["options"] = opts
         return CorrelateResponse.from_dict(self._client.request("POST", PATH, json=body))
 
-    def check(self, assets: Iterable[Dict[str, Any]]) -> List[CheckResult]:
+    def check(self, assets: Iterable[Dict[str, Any]], *, min_confidence: Optional[str] = None) -> List[CheckResult]:
         """Cheap staleness check: send each asset with the ``result_hash`` you stored; only assets that come back
-        ``changed`` need a fresh :meth:`correlate` call."""
+        ``changed`` need a fresh :meth:`correlate` call.
+
+        Also send the stored ``status_hash`` (and ``status_facts``) to learn whether the status changed (known-exploited
+        flags, lifecycle, firmware currency): those results carry ``status_changed`` and ``reasons``.
+        ``min_confidence``: the value the earlier :meth:`correlate` call used (the API default is ``MEDIUM``), so the
+        hashes are recomputed under the same gate."""
         items = list(assets)
         if len(items) > MAX_ASSETS_PER_CALL:
             raise ValueError(f"At most {MAX_ASSETS_PER_CALL} assets per call (got {len(items)}); split the list.")
-        body = self._client.request("POST", f"{PATH}/check", json={"assets": items})
+        payload: Dict[str, Any] = {"assets": items}
+        if min_confidence is not None:
+            payload["options"] = {"min_confidence": min_confidence}
+        body = self._client.request("POST", f"{PATH}/check", json=payload)
         return [CheckResult.from_dict(r) for r in ((body.get("data") or {}).get("results") or [])]
 
     def iter_asset_cves(

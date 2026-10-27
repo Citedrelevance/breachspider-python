@@ -323,7 +323,8 @@ every_page = bs.correlate.all_cves(device)       # follows cves_page.has_more fo
 ```
 
 Filters: `confirmed_only`, `known_exploited_only`, `fix_available_only`. `result_hash` never depends on sort, filters
-or page; use `bs.correlate.check(...)` to re-correlate only what changed. Guide: [docs/correlate.md](docs/correlate.md).
+or page; use `bs.correlate.check(...)` to re-correlate only what changed. Send `status_hash` too to learn when
+a status changed (known-exploited, lifecycle, firmware currency) with the same findings. Guide: [docs/correlate.md](docs/correlate.md).
 
 ## Windows patch level (API v2)
 

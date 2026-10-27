@@ -433,6 +433,8 @@ class CorrelateResult:
     needs_review: bool = False
     result_hash: Optional[str] = None
     warnings: list = field(default_factory=list)
+    status_hash: Optional[str] = None                   # hash of status_facts (API 2026-10-27)
+    status_facts: Optional[Dict[str, Any]] = None       # v, known_exploited, lifecycle, firmware_currency
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -445,7 +447,8 @@ class CorrelateResult:
                    cves_page=CvePage.from_dict(d.get("cves_page")),
                    fix_groups=[FixGroup.from_dict(g) for g in (d.get("fix_groups") or [])],
                    fix_plan=FixPlan.from_dict(d.get("fix_plan")), needs_review=bool(d.get("needs_review")),
-                   result_hash=d.get("result_hash"), warnings=list(d.get("warnings") or []), raw=d)
+                   result_hash=d.get("result_hash"), warnings=list(d.get("warnings") or []),
+                   status_hash=d.get("status_hash"), status_facts=d.get("status_facts"), raw=d)
 
     @property
     def warning_codes(self) -> list:
@@ -480,12 +483,20 @@ class CheckResult:
     changed: bool = False
     current_hash: Optional[str] = None
     reason: Optional[str] = None
+    # Only when the asset was sent with status_hash (API 2026-10-27); otherwise None and reasons empty.
+    findings_changed: Optional[bool] = None
+    status_changed: Optional[bool] = None
+    current_status_hash: Optional[str] = None
+    current_status_facts: Optional[Dict[str, Any]] = None
+    reasons: list = field(default_factory=list)         # [{code, text, cve_ids | from/to}]
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "CheckResult":
         return cls(asset_id=d.get("asset_id"), changed=bool(d.get("changed")), current_hash=d.get("current_hash"),
-                   reason=d.get("reason"), raw=d)
+                   reason=d.get("reason"), findings_changed=d.get("findings_changed"),
+                   status_changed=d.get("status_changed"), current_status_hash=d.get("current_status_hash"),
+                   current_status_facts=d.get("current_status_facts"), reasons=list(d.get("reasons") or []), raw=d)
 
 
 @dataclass

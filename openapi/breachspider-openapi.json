@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "BreachSpider correlation API (v1 correlate + v2 Windows patch level)",
-  "version": "2026-09-26",
+  "version": "2026-10-27",
   "description": "Covers POST /api/v1/assets/correlate-cves, /check, and API v2 Windows patch level. Full docs: https://breachspider.com/docs/api/correlate/ and https://breachspider.com/docs/api/windows-patch/. Per-key rate limit: 60 requests and 5,000 assets/hosts per minute by default (429 with error.detail.retry_after). Behavior change 2026-09-26: cves[] defaults to priority order; use options.sort=score for the previous order."
  },
  "servers": [
@@ -778,6 +778,46 @@
       "items": {
        "$ref": "#/components/schemas/Warning"
       }
+     },
+     "status_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "sha256 of status_facts (sorted keys, compact JSON)"
+     },
+     "status_facts": {
+      "type": "object",
+      "description": "v (1), known_exploited (matched known-exploited CVE ids), lifecycle, firmware_currency",
+      "properties": {
+       "v": {
+        "type": "integer"
+       },
+       "known_exploited": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "lifecycle": {
+        "anyOf": [
+         {
+          "type": "object"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "firmware_currency": {
+        "anyOf": [
+         {
+          "type": "object"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      }
      }
     }
    },
@@ -865,10 +905,65 @@
              "type": "null"
             }
            ]
+          },
+          "status_hash": {
+           "type": "string",
+           "pattern": "^sha256:[0-9a-f]{64}$",
+           "description": "status_hash from the earlier result; the response then reports status_changed"
+          },
+          "status_facts": {
+           "type": "object",
+           "description": "status_facts from the earlier result (optional); each status change is then named in reasons[]",
+           "properties": {
+            "v": {
+             "type": "integer"
+            },
+            "known_exploited": {
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "lifecycle": {
+             "anyOf": [
+              {
+               "type": "object"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "firmware_currency": {
+             "anyOf": [
+              {
+               "type": "object"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            }
+           }
           }
          }
         }
        ]
+      }
+     },
+     "options": {
+      "type": "object",
+      "properties": {
+       "min_confidence": {
+        "type": "string",
+        "enum": [
+         "LOW",
+         "MEDIUM",
+         "HIGH"
+        ],
+        "default": "MEDIUM",
+        "description": "The min_confidence the earlier correlate-cves call used; the hashes are recomputed under the same gate"
+       }
       }
      }
     }
@@ -898,6 +993,77 @@
           },
           "reason": {
            "type": "string"
+          },
+          "findings_changed": {
+           "type": "boolean"
+          },
+          "status_changed": {
+           "type": "boolean"
+          },
+          "current_status_hash": {
+           "type": "string",
+           "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "current_status_facts": {
+           "type": "object",
+           "description": "v (1), known_exploited (matched known-exploited CVE ids), lifecycle, firmware_currency",
+           "properties": {
+            "v": {
+             "type": "integer"
+            },
+            "known_exploited": {
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "lifecycle": {
+             "anyOf": [
+              {
+               "type": "object"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "firmware_currency": {
+             "anyOf": [
+              {
+               "type": "object"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            }
+           }
+          },
+          "reasons": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "required": [
+             "code",
+             "text"
+            ],
+            "properties": {
+             "code": {
+              "type": "string"
+             },
+             "text": {
+              "type": "string"
+             },
+             "cve_ids": {
+              "type": "array",
+              "items": {
+               "type": "string"
+              }
+             },
+             "from": {},
+             "to": {}
+            }
+           }
           }
          }
         }
@@ -907,6 +1073,13 @@
         "items": {
          "type": "string"
         }
+       },
+       "status_changed": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "present when any asset sent status_hash"
        }
       }
      },
@@ -2295,7 +2468,7 @@
   "/api/v1/assets/correlate-cves/check": {
    "post": {
     "operationId": "correlateCvesCheck",
-    "summary": "Cheap staleness check by result_hash",
+    "summary": "Cheap staleness check by result_hash (and status_hash)",
     "security": [
      {
       "bearerAuth": []

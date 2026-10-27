@@ -3,6 +3,18 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.3.7 (2026-10-27)
+
+### Added
+- `CorrelateResult.status_hash` and `status_facts`: the known-exploited flags of the matched CVEs, lifecycle and firmware
+  currency of each result, and their hash. A status can change while `result_hash` stays the same.
+- `correlate.check(..., min_confidence=...)`: sends `options.min_confidence`, the value the earlier `correlate()` call
+  used, so the hashes are recomputed under the same gate (the API default stays `MEDIUM`).
+- `CheckResult.findings_changed`, `status_changed`, `current_status_hash`, `current_status_facts` and `reasons` when
+  the asset was sent with `status_hash` (and optionally `status_facts`). Additive: without `status_hash` the response
+  and `CheckResult` are as before, and `changed` still means the findings changed.
+- The shipped OpenAPI document describes these fields.
+
 ## 0.3.6 (2026-10-26)
 
 ### Added
