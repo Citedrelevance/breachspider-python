@@ -3,6 +3,18 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.4.0 (2026-11-02)
+
+### Added
+- `client.batches`: asynchronous batch jobs. `submit()` queues up to 5,000 devices (`kind="devices"`, the assets of
+  `correlate.correlate`) or 1,000 Windows hosts (`kind="windows_hosts"`, the hosts of `windows.check`) and returns at
+  once; `get()`, `results()` (every finished item in submission order, across pages), `cancel()` and `wait()` (polls
+  with exponential backoff and jitter until the job finishes). Each result is exactly the sync endpoint's object.
+  `submit()` sends an `Idempotency-Key` (a new random one unless you pass your own) so a retried submit returns the
+  original job. `BatchJob` is exported. Batches are enabled per API key; for other keys the routes answer 404
+  (`NotFoundError`).
+- `Client.request(..., headers=...)` adds request headers (authorization cannot be replaced).
+
 ## 0.3.7 (2026-10-27)
 
 ### Added

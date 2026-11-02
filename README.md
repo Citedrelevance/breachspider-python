@@ -372,6 +372,25 @@ an IP, MAC or email address or a domain name. Your own asset tags, such as `PLC-
 Guide: [docs/windows-v2.md](docs/windows-v2.md). Examples for every endpoint: [examples/](examples/). OpenAPI
 document for these endpoints: [openapi/breachspider-openapi.json](openapi/breachspider-openapi.json).
 
+## Batch jobs (large device and Windows checks)
+
+For more than 200 devices, or when you would rather not hold a request open, submit a batch job. It returns at once;
+poll it (or receive a signed `batch.completed` webhook) and read the results page by page. Each result is exactly what
+the sync call returns for that device or host. Batches are enabled per API key: ask us to turn them on for yours.
+
+```python
+job = client.batches.submit(assets)                  # up to 5,000 devices; kind="windows_hosts" for up to 1,000 hosts
+job = client.batches.wait(job)                       # polls with backoff until it finishes
+print(job.status, job.progress)                      # succeeded, partial, failed or cancelled
+for item in client.batches.results(job):
+    if item["state"] == "done":
+        print(item["result"]["asset_id"], item["result"]["result_hash"])
+```
+
+Send your own `idempotency_key` to retry a submit safely: within 24 hours the same body returns the original job and a
+different body is refused. `client.batches.cancel(job)` stops a job after its current chunk; unprocessed items are not
+counted against your usage.
+
 ## Writes
 
 Reads work with any key. Writes (`environments.create`, `environments.add_asset`,

@@ -142,6 +142,7 @@ class Client:
         from .resources.reports import Reports
         from .resources.correlate import Correlate
         from .resources.windows import Windows
+        from .resources.batches import Batches
 
         self.cves = CVEs(self)
         self.catalog = Catalog(self)
@@ -150,6 +151,7 @@ class Client:
         self.reports = Reports(self)
         self.correlate = Correlate(self)      # API v1: stateless asset -> CVE correlation
         self.windows = Windows(self)          # API v2: Windows patch-level results
+        self.batches = Batches(self)          # async batch jobs: devices (v1) and stateless Windows hosts (v2)
 
     # -- constructors -------------------------------------------------------
 
@@ -229,19 +231,23 @@ class Client:
         data: Optional[Dict[str, Any]] = None,
         files: Optional[Dict[str, Any]] = None,
         accept_statuses: Tuple[int, ...] = (),
+        headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """Perform one request, map errors, update quota, return parsed JSON.
 
         ``data``/``files`` send a multipart form (used by the v2 CSV upload).
         ``accept_statuses`` lists error statuses whose body is a normal result
         rather than an error envelope (API v2 returns 422 with ``data.rejected``
-        when every host in a call is refused).
+        when every host in a call is refused). ``headers`` adds request headers
+        (batch submits send ``Idempotency-Key``); it cannot replace authorization.
         """
         url = self._url(path)
+        extra = {k: v for k, v in (headers or {}).items() if k.lower() not in ("authorization",)}
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Accept": "application/json",
             "User-Agent": self.user_agent,
+            **extra,
         }
         # requests drops params whose value is None, which is exactly what we want.
         clean_params = None if params is None else {k: v for k, v in params.items() if v is not None}

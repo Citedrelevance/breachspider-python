@@ -60,6 +60,7 @@ from .exceptions import (
 )
 
 from .warnings import WARNING_CODES, describe_warning
+from .resources.batches import BatchJob
 
 __all__ = [
     "__version__",
@@ -67,6 +68,7 @@ __all__ = [
     "describe_warning",
     "Client",
     "Quota",
+    "BatchJob",
     # models
     "CVE",
     "Vendor",
