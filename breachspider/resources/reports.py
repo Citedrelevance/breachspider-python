@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from . import _Resource
+from . import _Resource, _not_in_api
 from ..models import Report
 
 
@@ -13,11 +13,13 @@ class Reports(_Resource):
 
     def list(self) -> List[Report]:
         """All generated reports for the org."""
+        _not_in_api("client.reports.list()")
         body = self._client.request("GET", "/reports")
         return [Report.from_dict(r) for r in (body.get("data") or [])]
 
     def get(self, report_id: int) -> Report:
         """One report by id."""
+        _not_in_api("client.reports.get()")
         body = self._client.request("GET", f"/reports/{report_id}")
         data = body.get("data") if isinstance(body, dict) else None
         return Report.from_dict(data if isinstance(data, dict) else body)
@@ -27,6 +29,7 @@ class Reports(_Resource):
 
         ``report_type`` is e.g. ``"iec_62443"``, ``"nerc_cip"``, ``"patch_gap"``.
         """
+        _not_in_api("client.reports.generate()")
         payload = {"report_type": report_type, **fields}
         body = self._client.request("POST", "/reports/generate", json=payload)
         data = body.get("data") if isinstance(body, dict) else None

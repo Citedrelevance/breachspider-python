@@ -33,7 +33,7 @@ def bs():
 def test_vendor_lookup_reads_slug(bs):
     v = bs.catalog.vendor("schneider electric")
     assert v.id == 11529
-    assert v.name == "Schneider-Electric"
+    assert v.name == "Schneider Electric"   # catalog spelling since the 2026-11-07 vendor cleanup
     assert v.slug == "schneider-electric"  # read from response, not derived
 
 

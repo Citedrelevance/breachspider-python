@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Optional
 
-from . import _Resource
+from . import _Resource, _not_in_api
 from ..models import Environment, Asset
 from ..client import MAX_ASSET_LIMIT
 
@@ -60,9 +60,11 @@ class Environments(_Resource):
 
     def tickets(self, env_id: int) -> List[Dict[str, Any]]:
         """List remediation tickets for an environment."""
+        _not_in_api("client.environments.tickets()")
         body = self._client.request("GET", f"/environments/{env_id}/tickets")
         return list(body.get("tickets") or [])
 
     def create_ticket(self, env_id: int, **fields: Any) -> Dict[str, Any]:
         """Open a remediation ticket (requires a write-scoped key)."""
+        _not_in_api("client.environments.create_ticket()")
         return self._client.request("POST", f"/environments/{env_id}/tickets", json=fields)

@@ -3,6 +3,15 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.5.0 (2026-11-08)
+
+### Deprecated
+- `client.watchlist`, `client.reports`, `environments.tickets()` and `environments.create_ticket()` emit a
+  `DeprecationWarning`: they call web app routes that are not part of the documented API
+  (https://breachspider.com/docs/api/overview/). They still work today; once API keys are limited to the documented
+  API they will answer `403 NOT_IN_API`. Everything else in the SDK (correlate, check, Windows, batches, CVEs,
+  catalog, inventory sync) is the documented API and is unchanged.
+
 ## 0.4.0 (2026-11-02)
 
 ### Added

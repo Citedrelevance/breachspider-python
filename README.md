@@ -393,12 +393,17 @@ counted against your usage.
 
 ## Writes
 
-Reads work with any key. Writes (`environments.create`, `environments.add_asset`,
-`watchlist.add`, `environments.create_ticket`, `reports.generate`) require a
-**write-scoped** `bs_live_` key and are rejected for demo tokens. Session-only
-operations (API-key management, webhook delivery, billing, and account
-settings) are intentionally **not** part of this SDK; they can never be called
+Reads work with any key. Inventory writes (`environments.create`, `environments.add_asset`) require a
+**write-scoped** `bs_live_` key and are rejected for demo tokens. Session-only operations (API-key management,
+webhook delivery, billing, and account settings) are intentionally **not** part of this SDK; they can never be called
 with a key.
+
+### Not part of the API (deprecated in 0.5.0)
+
+`client.watchlist`, `client.reports` and `environments.tickets()` / `environments.create_ticket()` call web app
+routes, not the documented API (https://breachspider.com/docs/api/overview/). They still answer today and now emit a
+`DeprecationWarning`; once API keys are limited to the documented API they will be refused (`403 NOT_IN_API`). Use the
+web app for watchlists, reports and change tickets.
 
 ## Honest limits
 
