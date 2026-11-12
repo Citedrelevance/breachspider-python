@@ -31,6 +31,12 @@ def _options(**kw: Any) -> Dict[str, Any]:
     return {k: v for k, v in kw.items() if v is not None}
 
 
+def _device_timeout(client) -> float:
+    """At least DEVICE_CALL_TIMEOUT for device calls (a larger client timeout is kept)."""
+    from ..client import DEVICE_CALL_TIMEOUT
+    return max(float(getattr(client, "timeout", 0) or 0), DEVICE_CALL_TIMEOUT)
+
+
 class Correlate(_Resource):
     """``client.correlate``"""
 
@@ -65,11 +71,14 @@ class Correlate(_Resource):
                         fix_available_only=fix_available_only, cve_page=cve_page, cve_page_size=cve_page_size)
         if opts:
             body["options"] = opts
-        return CorrelateResponse.from_dict(self._client.request("POST", PATH, json=body))
+        return CorrelateResponse.from_dict(self._client.request("POST", PATH, json=body, timeout=_device_timeout(self._client)))
 
     def check(self, assets: Iterable[Dict[str, Any]], *, min_confidence: Optional[str] = None) -> List[CheckResult]:
-        """Cheap staleness check: send each asset with the ``result_hash`` you stored; only assets that come back
-        ``changed`` need a fresh :meth:`correlate` call.
+        """Staleness check: send each asset with the ``result_hash`` you stored; only assets that come back
+        ``changed`` need a fresh :meth:`correlate` call. Up to 200 assets per call. The server recomputes each distinct
+        device (about 0.2 s each; identical devices are computed once), so 200 distinct devices take roughly 40 s: this
+        call uses a 90 s timeout. After a timeout (:class:`~breachspider.exceptions.RequestTimeoutError`) send batches
+        of at most 50.
 
         Also send the stored ``status_hash`` (and ``status_facts``) to learn whether the status changed (known-exploited
         flags, lifecycle, firmware currency): those results carry ``status_changed`` and ``reasons``.
@@ -81,7 +90,7 @@ class Correlate(_Resource):
         payload: Dict[str, Any] = {"assets": items}
         if min_confidence is not None:
             payload["options"] = {"min_confidence": min_confidence}
-        body = self._client.request("POST", f"{PATH}/check", json=payload)
+        body = self._client.request("POST", f"{PATH}/check", json=payload, timeout=_device_timeout(self._client))
         return [CheckResult.from_dict(r) for r in ((body.get("data") or {}).get("results") or [])]
 
     def iter_asset_cves(

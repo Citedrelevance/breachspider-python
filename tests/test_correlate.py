@@ -160,3 +160,40 @@ def test_correlate_result_carries_status_hash():
     res = CorrelateResult.from_dict({"asset_id": "a", "result_hash": "sha256:" + "a" * 64,
                                      "status_hash": "sha256:" + "b" * 64, "status_facts": facts})
     assert res.status_hash == "sha256:" + "b" * 64 and res.status_facts == facts
+
+
+# ---------------------------------------------------------------- device-call timeouts (lab report 2026-11-12)
+@responses.activate
+def test_check_timeout_is_not_retried_and_says_reduce_batch(client):
+    import requests
+    responses.add(responses.POST, URL + "/check", body=requests.exceptions.ReadTimeout("read timed out"))
+    with pytest.raises(exc.RequestTimeoutError) as ei:
+        client.correlate.check([{"asset_id": f"a{i}", "vendor": "Siemens", "product": "S7-1500", "version": "2.9",
+                                 "result_hash": "sha256:" + "0" * 64} for i in range(68)])
+    e = ei.value
+    assert len(responses.calls) == 1                            # never re-sent: the same batch would time out again
+    assert e.retryable is False and e.action == "reduce_batch" and e.detail == {"max": 50}
+    assert "batches of at most 50" in str(e) and "Bearer" not in str(e)
+
+
+def test_device_calls_use_the_long_timeout(client, monkeypatch):
+    seen = {}
+
+    def fake_request(method, path, **kw):
+        seen[path] = kw.get("timeout")
+        return {"data": {"results": []}} if path.endswith("/check") else {"data": {"results": [], "summary": {}}}
+    monkeypatch.setattr(client, "request", fake_request)
+    client.correlate.check([{"asset_id": "a", "vendor": "v", "product": "p"}])
+    assert seen["/api/v1/assets/correlate-cves/check"] == 90.0
+
+
+@responses.activate
+def test_get_timeouts_still_retry(client):
+    import requests
+    u = "https://breachspider.com/api/v1/cves/CVE-2024-0001"
+    responses.add(responses.GET, u, body=requests.exceptions.ReadTimeout("t"))
+    responses.add(responses.GET, u, body=requests.exceptions.ReadTimeout("t"))
+    responses.add(responses.GET, u, body=requests.exceptions.ReadTimeout("t"))
+    with pytest.raises(exc.APIConnectionError) as ei:
+        client.request("GET", "/api/v1/cves/CVE-2024-0001")
+    assert not isinstance(ei.value, exc.RequestTimeoutError) and len(responses.calls) == 3

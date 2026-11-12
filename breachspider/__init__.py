@@ -42,6 +42,7 @@ from .models import (
 from .exceptions import (
     BreachSpiderError,
     APIConnectionError,
+    RequestTimeoutError,
     APIError,
     BadRequestError,
     UnknownParameterError,
@@ -97,6 +98,7 @@ __all__ = [
     # exceptions
     "BreachSpiderError",
     "APIConnectionError",
+    "RequestTimeoutError",
     "APIError",
     "BadRequestError",
     "UnknownParameterError",

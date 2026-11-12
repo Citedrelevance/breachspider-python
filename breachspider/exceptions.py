@@ -54,6 +54,22 @@ class APIConnectionError(BreachSpiderError):
     action = "retry_later"
 
 
+class RequestTimeoutError(APIConnectionError):
+    """The API did not answer a device call (correlate / check) within the client timeout.
+
+    Not retryable unchanged: the same batch would take as long again (and a POST may already have been metered).
+    ``action`` is ``reduce_batch`` and ``detail["max"]`` is a batch size that finishes in time. Device checks cost
+    about 0.2 s per distinct device server-side (repeated identical devices are computed once), so 200 distinct
+    devices take roughly 40 s."""
+
+    retryable = False
+    action = "reduce_batch"
+
+    def __init__(self, message: str, max_batch: int) -> None:
+        super().__init__(message)
+        self.detail = {"max": max_batch}
+
+
 class APIError(BreachSpiderError):
     """Base class for a structured HTTP error returned by the API."""
 

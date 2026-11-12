@@ -41,6 +41,11 @@ API_PREFIX = "/api/v1"
 MAX_PER_PAGE = 100
 #: Max limit the assets endpoint accepts (silently clamped above this).
 MAX_ASSET_LIMIT = 500
+#: Device calls (correlate-cves, its /check) can take up to ~40 s for 200 distinct devices: they get this timeout,
+#: below Cloudflare's 100 s limit. After a client timeout the caller is told to split into batches of this size.
+DEVICE_CALL_TIMEOUT = 90.0
+SAFE_BATCH_ON_TIMEOUT = 50
+
 #: Default per-request timeout in seconds (every request always sets a timeout).
 DEFAULT_TIMEOUT = 30.0
 
@@ -232,6 +237,7 @@ class Client:
         files: Optional[Dict[str, Any]] = None,
         accept_statuses: Tuple[int, ...] = (),
         headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Perform one request, map errors, update quota, return parsed JSON.
 
@@ -263,9 +269,17 @@ class Client:
                     data=data,
                     files=files,
                     headers=headers,
-                    timeout=self.timeout,
+                    timeout=timeout or self.timeout,
                 )
             except requests.RequestException as e:
+                # A device call (POST) that timed out is not repeated: the same batch takes as long again and may
+                # already be metered. The caller is told to send smaller batches (lab report 2026-11-12).
+                if isinstance(e, requests.Timeout) and method.upper() not in ("GET", "HEAD"):
+                    raise exc.RequestTimeoutError(
+                        self._redact(f"Request to {url} did not finish within {timeout or self.timeout:.0f} s. Device "
+                                     f"checks take about 0.2 s per distinct device; split the list into batches of at "
+                                     f"most {SAFE_BATCH_ON_TIMEOUT} and call again."),
+                        SAFE_BATCH_ON_TIMEOUT) from None
                 # Retry transient network errors; never surface the request object.
                 if attempt < self.max_retries:
                     time.sleep(self._backoff(attempt))

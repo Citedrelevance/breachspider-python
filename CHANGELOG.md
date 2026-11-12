@@ -3,6 +3,19 @@
 All notable changes to the BreachSpider Python SDK. This project follows [Semantic Versioning](https://semver.org/);
 while the major version is 0, a minor release may include behavior changes, and they are listed first.
 
+## 0.5.1 (2026-11-12)
+
+### Fixed
+- `correlate.correlate()` and `correlate.check()` use a 90 s timeout (at least; a larger client timeout is kept). The
+  default 30 s failed `check()` calls of about 68 or more devices, which take about 0.2 s per distinct device
+  server-side (200 distinct devices take about 40 s).
+- A client timeout on a POST is no longer retried automatically (the same batch would time out again, and may already
+  have been metered). It raises the new `RequestTimeoutError` (a subclass of `APIConnectionError`) with
+  `retryable=False`, `action="reduce_batch"` and `detail={"max": 50}`. GET requests still retry as before.
+
+### Added
+- `Client.request(..., timeout=...)`: per-request timeout.
+
 ## 0.5.0 (2026-11-08)
 
 ### Deprecated
